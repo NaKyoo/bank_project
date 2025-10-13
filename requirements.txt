@@ -1,5 +1,4 @@
-# Minimal, KISS requirements for this FastAPI app
-# FastAPI and an ASGI server are sufficient; sub-dependencies (Starlette, Pydantic, etc.) are installed automatically.
+# Minimal, KISS requirements for this FastAPI app (pinned to latest known versions)
 fastapi==0.119.0
 uvicorn[standard]==0.37.0
 
