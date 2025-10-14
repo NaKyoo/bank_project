@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Path
 import uvicorn
 from app.models.beneficiary import BeneficiaryRequest
 from app.models.transfer import TransferRequest, Transfer
@@ -56,3 +56,7 @@ def add_beneficiary(owner_account: str, request: BeneficiaryRequest):
 @app.get("/accounts/{owner_account}/beneficiaries")
 def list_beneficiaries(owner_account: str):
     return bank_service.get_beneficiaries(owner_account)
+
+@app.get("/accounts/{account_number}")
+def get_account_info(account_number: str = Path(..., description="Numéro du compte")):
+    return bank_service.get_account_info(account_number)

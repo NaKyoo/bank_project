@@ -36,9 +36,26 @@ class BankService:
         return account
 
 
+    def get_account_info(self, account_number: str) -> Dict:
+        """Retourne les informations d’un compte (solde, bénéficiaires, etc.)"""
+        account = self.get_account(account_number)  # lève 404 si non trouvé
+
+        beneficiary_list = []
+        if account_number in self.beneficiaries:
+            beneficiary_list = [
+                {"name": b.name, "account_number": b.account_number}
+                for b in self.beneficiaries[account_number].values()
+            ]
+
+        return {
+            "account_number": account.account_number,
+            "balance": account.balance,
+            "beneficiaries": beneficiary_list,
+        }
+
 
     ######################################
-    ############# TRANSFERS ################
+    ############# TRANSFERTS ################
     ######################################
     def transfer_money(self, from_account: str, to_account: str, amount: Decimal):
         if amount <= 0:
