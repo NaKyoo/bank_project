@@ -1,35 +1,54 @@
-from decimal import Decimal
 from datetime import datetime
-from typing import Dict, List, Optional
+from decimal import Decimal
+from typing import List, Optional
 
-class Beneficiary:
-    def __init__(self, beneficiary_account_number: str):
-        self.beneficiary_account_number = beneficiary_account_number
+from sqlmodel import Field, Relationship, SQLModel
 
-class Transaction:
-    def __init__(
-        self,
-        transaction_type: str,
-        amount: Decimal,
-        source_account_number: Optional[str] = None,
-        destination_account_number: Optional[str] = None
-    ):
-        self.transaction_type = transaction_type  # "deposit" ou "transfer"
-        self.amount = amount
-        self.source_account_number = source_account_number
-        self.destination_account_number = destination_account_number
-        self.date = datetime.now()
+class Transaction(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    transaction_type: str
+    amount: Decimal
+    source_account_number: Optional[str] = Field(default=None, foreign_key="bankaccount.account_number")
+    destination_account_number: Optional[str] = Field(default=None, foreign_key="bankaccount.account_number")
+    date: datetime = Field(default_factory=datetime.now)
 
-class BankAccount:
-    def __init__(self, account_number: str, initial_balance: Decimal = Decimal("0")):
-        self.account_number = account_number
-        self.balance = initial_balance
-        self.beneficiaries: Dict[str, Beneficiary] = {}
-        self.transactions: List[Transaction] = []
+    
+    # Relations
+    source_account: Optional["BankAccount"] = Relationship(
+        back_populates="transactions",
+        sa_relationship_kwargs={"foreign_keys": "[Transaction.source_account_number]"}
+    )
+    destination_account: Optional["BankAccount"] = Relationship(
+        back_populates="incoming_transactions",
+        sa_relationship_kwargs={"foreign_keys": "[Transaction.destination_account_number]"}
+    )
+    
+class BankAccount(SQLModel, table=True):
+    account_number: str = Field(primary_key=True)
+    balance: Decimal = Field(default=Decimal("0"))
+
+    # transactions envoyées
+    transactions: List["Transaction"] = Relationship(
+        back_populates="source_account",
+        sa_relationship_kwargs={"foreign_keys": "[Transaction.source_account_number]"}
+    )
+
+    # transactions reçues
+    incoming_transactions: List["Transaction"] = Relationship(
+        back_populates="destination_account",
+        sa_relationship_kwargs={"foreign_keys": "[Transaction.destination_account_number]"}
+    )
+
+    # bénéficiaires
+    beneficiaries: List["Beneficiary"] = Relationship( # type: ignore
+        back_populates="owner",
+        sa_relationship_kwargs={"foreign_keys": "[Beneficiary.owner_account_number]"}
+    )
 
     def deposit(self, deposit_amount: Decimal) -> Transaction:
         if deposit_amount <= 0:
             raise ValueError("Le montant du dépôt doit être positif")
+        
         self.balance += deposit_amount
         transaction = Transaction(
             transaction_type="deposit",
@@ -47,8 +66,10 @@ class BankAccount:
             raise ValueError("Le compte source et le compte destinataire doivent être différents")
         if self.balance < transfer_amount:
             raise ValueError("Solde insuffisant pour le transfert")
+        
         self.balance -= transfer_amount
         destination_account.balance += transfer_amount
+        
         transaction = Transaction(
             transaction_type="transfer",
             amount=transfer_amount,
@@ -60,14 +81,19 @@ class BankAccount:
         return transaction
 
     def add_beneficiary(self, beneficiary_account: "BankAccount"):
+        from app.models.beneficiary import Beneficiary  # Import here to avoid circular import
+
         if beneficiary_account.account_number == self.account_number:
             raise ValueError("Impossible d'ajouter soi-même comme bénéficiaire")
-        if beneficiary_account.account_number in self.beneficiaries:
+        beneficiary_numbers = [b.beneficiary_account_number for b in self.beneficiaries]
+        if beneficiary_account.account_number in beneficiary_numbers:
             raise ValueError("Ce compte est déjà un bénéficiaire")
 
-        self.beneficiaries[beneficiary_account.account_number] = Beneficiary(
-            beneficiary_account.account_number
+        beneficiary = Beneficiary(
+            owner_account_number=self.account_number,
+            beneficiary_account_number=beneficiary_account.account_number
         )
+        self.beneficiaries.append(beneficiary)
         return {
             "owner_account": self.account_number,
             "beneficiary_account_number": beneficiary_account.account_number
