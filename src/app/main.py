@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 import uvicorn
+from app.models.beneficiary import BeneficiaryRequest
 from app.models.transfer import TransferRequest, Transfer
 from app.services.bank_service import bank_service
-
+from decimal import Decimal
 
 
 app = FastAPI(title="Bank Project API")
@@ -34,6 +35,11 @@ def make_transfer(request: TransferRequest):
         status="completed"
     )
     
+@app.post("/deposit")
+def deposit(account_number: str, amount: Decimal):
+    """Permet de déposer de l'argent sur un compte."""
+    return bank_service.deposit_money(account_number, amount)
+    
 @app.get("/accounts/{account_number}")
 def get_account(account_number: str):
     """Permet de vérifier le solde d’un compte"""
@@ -42,3 +48,11 @@ def get_account(account_number: str):
         "account_number": account.account_number,
         "balance": account.balance
     }
+    
+@app.post("/accounts/{owner_account}/beneficiaries")
+def add_beneficiary(owner_account: str, request: BeneficiaryRequest):
+    return bank_service.add_beneficiary(owner_account, request.name, request.account_number)
+
+@app.get("/accounts/{owner_account}/beneficiaries")
+def list_beneficiaries(owner_account: str):
+    return bank_service.get_beneficiaries(owner_account)
