@@ -3,10 +3,8 @@ from typing import Dict
 from pydantic import BaseModel
 
 class Beneficiary:
-    def __init__(self, name: str, account_number: str):
-        self.name = name
+    def __init__(self, account_number: str):
         self.account_number = account_number
 
 class BeneficiaryRequest(BaseModel):
-    name: str
     account_number: str

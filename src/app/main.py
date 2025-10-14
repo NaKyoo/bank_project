@@ -1,62 +1,9 @@
-from fastapi import FastAPI, Path
+from fastapi import FastAPI
 import uvicorn
-from app.models.beneficiary import BeneficiaryRequest
-from app.models.transfer import TransferRequest, Transfer
-from app.services.bank_service import bank_service
-from decimal import Decimal
-
+from app.controllers import bank_controller
 
 app = FastAPI(title="Bank Project API")
-
-
-@app.get("/")
-async def read_root():
-    return {"message": "Hello, FastAPI!"}
-
+app.include_router(bank_controller.router)
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
-    
-    
-    
-@app.post("/transfer", response_model=Transfer)
-def make_transfer(request: TransferRequest):
-    result = bank_service.transfer_money(
-        from_account=request.from_account,
-        to_account=request.to_account,
-        amount=request.amount
-    )
-
-    return Transfer(
-        date=result["date"],
-        from_account=result["from_account"],
-        to_account=result["to_account"],
-        amount=result["amount"],
-        status="completed"
-    )
-    
-@app.post("/deposit")
-def deposit(account_number: str, amount: Decimal):
-    """Permet de déposer de l'argent sur un compte."""
-    return bank_service.deposit_money(account_number, amount)
-    
-@app.get("/accounts/{account_number}")
-def get_account(account_number: str):
-    """Permet de vérifier le solde d’un compte"""
-    account = bank_service.get_account(account_number)
-    return {
-        "account_number": account.account_number,
-        "balance": account.balance
-    }
-    
-@app.post("/accounts/{owner_account}/beneficiaries")
-def add_beneficiary(owner_account: str, request: BeneficiaryRequest):
-    return bank_service.add_beneficiary(owner_account, request.name, request.account_number)
-
-@app.get("/accounts/{owner_account}/beneficiaries")
-def list_beneficiaries(owner_account: str):
-    return bank_service.get_beneficiaries(owner_account)
-
-@app.get("/accounts/{account_number}")
-def get_account_info(account_number: str = Path(..., description="Numéro du compte")):
-    return bank_service.get_account_info(account_number)

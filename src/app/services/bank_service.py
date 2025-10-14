@@ -1,149 +1,79 @@
 from decimal import Decimal
 from typing import Dict
 from fastapi import HTTPException
-from datetime import datetime
-
-from app.models.beneficiary import Beneficiary
-
-
-class BankAccount:
-    def __init__(self, account_number: str, balance: Decimal = Decimal('0')):
-        self.account_number = account_number
-        self.balance = balance
-
+from app.models.account import BankAccount
 
 class BankService:
     def __init__(self):
-        # Simulation d'une base de comptes
-        self.accounts = {
-            "COMPTE_EPARGNE": BankAccount("COMPTE_EPARGNE", Decimal('150')),
-            "COMPTE_COURANT": BankAccount("COMPTE_COURANT", Decimal('150')),
-            "COMPTE_JOINT": BankAccount("COMPTE_JOINT", Decimal('150'))
-        }
-        # Mapping des comptes vers leurs bénéficiaires
-        self.beneficiaries: Dict[str, Dict[str, Beneficiary]] = {
-            account: {} for account in self.accounts
+        self.accounts: Dict[str, BankAccount] = {
+            "COMPTE_EPARGNE": BankAccount("COMPTE_EPARGNE", Decimal("150")),
+            "COMPTE_COURANT": BankAccount("COMPTE_COURANT", Decimal("150")),
+            "COMPTE_JOINT": BankAccount("COMPTE_JOINT", Decimal("150")),
         }
 
-
-    ######################################
-    ############# COMPTES ################
-    ######################################
     def get_account(self, account_number: str) -> BankAccount:
         account = self.accounts.get(account_number)
         if not account:
-            raise HTTPException(status_code=404, detail=f"Compte '{account_number}' non trouvé.")
+            raise HTTPException(404, f"Compte '{account_number}' non trouvé")
         return account
 
-
-    def get_account_info(self, account_number: str) -> Dict:
-        """Retourne les informations d’un compte (solde, bénéficiaires, etc.)"""
-        account = self.get_account(account_number)  # lève 404 si non trouvé
-
-        beneficiary_list = []
-        if account_number in self.beneficiaries:
-            beneficiary_list = [
-                {"name": b.name, "account_number": b.account_number}
-                for b in self.beneficiaries[account_number].values()
-            ]
-
-        return {
-            "account_number": account.account_number,
-            "balance": account.balance,
-            "beneficiaries": beneficiary_list,
-        }
-
-
-    ######################################
-    ############# TRANSFERTS ################
-    ######################################
-    def transfer_money(self, from_account: str, to_account: str, amount: Decimal):
-        if amount <= 0:
-            raise HTTPException(status_code=400, detail="Le montant du transfert doit être positif.")
-
-        source = self.get_account(from_account)
-        destination = self.get_account(to_account)
-
-        if from_account == to_account:
-            raise HTTPException(status_code=400, detail="Le compte source et le compte destinataire doivent être différents.")
-
-        if source.balance < amount:
-            raise HTTPException(status_code=400, detail=f"Solde insuffisant sur le compte {from_account}.")
-
-        source.balance -= amount
-        destination.balance += amount
-
-        return {
-            "from_account": from_account,
-            "to_account": to_account,
-            "amount": amount,
-            "source_balance": source.balance,
-            "destination_balance": destination.balance,
-            "date": datetime.now()
-        }
-
-
-    ######################################
-    ############# DEPOT ################
-    ######################################
-    def deposit_money(self, account_number: str, amount: Decimal):
-        """Ajoute de l’argent sur un compte (dépôt)."""
-        if amount <= 0:
-            raise HTTPException(status_code=400, detail="Le montant du dépôt doit être positif.")
-
+    def deposit(self, account_number: str, amount: Decimal):
         account = self.get_account(account_number)
-        account.balance += amount
+        try:
+            return account.deposit(amount)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
 
-        return {
-            "account_number": account.account_number,
-            "amount_deposited": amount,
-            "new_balance": account.balance,
-            "date": datetime.now()
-        }
+    def transfer(self, from_acc: str, to_acc: str, amount: Decimal):
+        source = self.get_account(from_acc)
+        destination = self.get_account(to_acc)
+        try:
+            return source.transfer_to(destination, amount)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    def add_beneficiary(self, owner_account_number: str, target_account_number: str):
+        owner_account = self.get_account(owner_account_number)
+        target_account = self.get_account(target_account_number)
+
+        try:
+            return owner_account.add_beneficiary(target_account)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    def get_account_info(self, account_number: str):
+        bank_account = self.get_account(account_number)
         
-        
-        
-    ######################################
-    ############# BENEFICIAIRES ################
-    ######################################
-    def add_beneficiary(self, owner_account: str, name: str, account_number: str):
-        """Ajoute un bénéficiaire avec validations métier strictes"""
-
-        owner = self.get_account(owner_account)
-
-        # Le nom du bénéficiaire doit être renseigné
-        if not name.strip():
-            raise HTTPException(status_code=400, detail="Le nom du bénéficiaire doit être renseigné.")
-
-        # Le bénéficiaire ne peut pas être un des comptes de l’utilisateur
-        if account_number == owner_account:
-            raise HTTPException(status_code=400, detail="Impossible d'ajouter soi-même comme bénéficiaire.")
-
-        # Le bénéficiaire doit exister
-        if account_number not in self.accounts:
-            raise HTTPException(status_code=404, detail=f"Le compte bénéficiaire {account_number} n'existe pas.")
-
-        # Le bénéficiaire ne peut pas être ajouté plusieurs fois (même nom)
-        if name in self.beneficiaries[owner_account]:
-            raise HTTPException(status_code=400, detail=f"Un bénéficiaire avec le nom '{name}' existe déjà.")
-
-        # Ajout du bénéficiaire
-        self.beneficiaries[owner_account][name] = Beneficiary(name, account_number)
-        return {
-            "owner_account": owner_account,
-            "beneficiary_name": name,
-            "beneficiary_account": account_number
-        }
-        
-        
-    def get_beneficiaries(self, owner_account: str):
-        """Retourne la liste des bénéficiaires pour un compte"""
-        owner = self.get_account(owner_account)
-        return [
-            {"name": b.name, "account_number": b.account_number}
-            for b in self.beneficiaries[owner_account].values()
+        beneficiary_list = [
+            {
+                "beneficiary_name": beneficiary.name,
+                "beneficiary_account_number": beneficiary.beneficiary_account_number
+            }
+            for beneficiary in bank_account.beneficiaries.values()
         ]
+        
+        transaction_list = [
+            {
+                "transaction_type": transaction.transaction_type,
+                "transaction_amount": transaction.amount,
+                "source_account_number": transaction.source_account_number,
+                "destination_account_number": transaction.destination_account_number,
+                "transaction_date": transaction.date
+            }
+            for transaction in bank_account.transactions
+        ]
+        
+        return {
+            "account_number": bank_account.account_number,
+            "current_balance": bank_account.balance,
+            "beneficiaries": beneficiary_list,
+            "transactions": transaction_list
+        }
+        
+    def get_beneficiaries(self, account_number: str):
+        bank_account = self.get_account(account_number)
+        return list(bank_account.beneficiaries)
 
 
-# Instance unique du service
+# instance unique du service
 bank_service = BankService()
