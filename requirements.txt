@@ -1,5 +1,5 @@
 # Minimal, KISS requirements for this FastAPI app (pinned to latest known versions)
 fastapi==0.119.0
 uvicorn[standard]==0.37.0
-
+passlib[bcrypt]
 # If you need additional packages for development or testing, keep them in a separate dev requirements file.
