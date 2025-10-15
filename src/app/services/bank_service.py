@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import HTTPException             
 from sqlmodel import Session, select          
 from decimal import Decimal                   
@@ -111,6 +112,10 @@ class BankService:
         """
         account = self.get_account(session, account_number)  # Vérifie que le compte existe
 
+        # Vérification si le compte est clôturé
+        if not account.is_active:
+            raise HTTPException(403, "Ce compte est clôturé et ne peut plus être consulté")
+        
         # Liste des bénéficiaires associés à ce compte
         beneficiaries = session.exec(
             select(Beneficiary.beneficiary_account_number)
@@ -155,6 +160,72 @@ class BankService:
             select(Beneficiary.beneficiary_account_number)
             .where(Beneficiary.owner_account_number == account_number)
         ).all()
+        
+    
+    # ============================================================
+    # Clôture d’un compte
+    # ============================================================
+    def close_account(self, session: Session, account_number: str) -> BankAccount:
+        """
+        Clôture un compte secondaire :
+        - Vérifie son existence
+        - Vérifie que ce n’est pas un compte parent avec enfants actifs
+        - Transfère le solde vers le compte parent si nécessaire
+        - Désactive le compte via BankAccount.close_account()
+        """
+        account = self.get_account(session, account_number)
+
+        # Interdit la clôture d'un parent s'il a des enfants actifs
+        if account.child_accounts:
+            active_children = [c for c in account.child_accounts if c.is_active]
+            if active_children:
+                raise HTTPException(400, "Impossible de clôturer un compte parent tant que des comptes secondaires sont actifs.")
+
+        if not account.is_active:
+            raise HTTPException(400, "Le compte est déjà clôturé.")
+
+        # Transfert du solde vers le parent si c'est un compte secondaire
+        if account.balance > 0 and account.parent_account_number:
+            parent_account = self.get_account(session, account.parent_account_number)
+            account.transfer_to(parent_account, account.balance)
+
+        account.close_account()
+        session.add(account)
+        session.commit()
+        session.refresh(account)
+        return account
+
+
+    # ============================================================
+    # Archivage d’un compte clôturé
+    # ============================================================
+    def archive_account(self, session: Session, account_number: str, reason: str = "Clôture du compte"):
+        """
+        Archive un compte clôturé :
+        - Crée un ArchivedBankAccount à partir de BankAccount.archive()
+        - Supprime le compte original de la table principale
+        - Conserve la référence parent-enfant
+        """
+        account = self.get_account(session, account_number)
+
+        if account.is_active:
+            raise HTTPException(400, "Impossible d’archiver un compte encore actif.")
+        if not account.closed_at:
+            raise HTTPException(400, "Le compte doit être clôturé avant archivage.")
+
+        archived = account.archive()
+
+        session.add(archived)
+        session.delete(account)
+        session.commit()
+
+        return {
+            "message": f"Le compte {account_number} a été archivé avec succès.",
+            "archived_at": archived.archived_at,
+            "parent_account_number": archived.parent_account_number
+        }
+
+
 
 
 # ------------------------------

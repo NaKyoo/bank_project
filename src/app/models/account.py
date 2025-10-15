@@ -1,4 +1,4 @@
-from datetime import datetime           
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List, Optional  
 
@@ -49,7 +49,29 @@ class BankAccount(SQLModel, table=True):
 
     # Solde du compte (par défaut à 0)
     balance: Decimal = Field(default=Decimal("0"))
+    
+    
+    is_active: bool = Field(default=True)
+    closed_at: Optional[datetime] = Field(default=None)
+    
 
+    # ==============================
+    # Lien parent-enfant
+    # ==============================
+    
+    parent_account_number: Optional[str] = Field(default=None, foreign_key="bankaccount.account_number")
+    
+    # Le parent (compte principal)
+    parent_account: Optional["BankAccount"] = Relationship(
+        back_populates="child_accounts",
+        sa_relationship_kwargs={"remote_side": "[BankAccount.account_number]"}
+    )
+
+    # Les enfants (comptes secondaires)
+    child_accounts: List["BankAccount"] = Relationship(
+        back_populates="parent_account"
+    )
+    
     # ------------------------------
     # Relations avec d'autres tables
     # ------------------------------
@@ -75,6 +97,43 @@ class BankAccount(SQLModel, table=True):
     # ------------------------------
     # Méthodes métier (logique applicative)
     # ------------------------------
+    
+    def close_account(self):
+        """Clôture le compte et transfère le solde au parent si nécessaire"""
+        if not self.is_active:
+            raise ValueError("Le compte est déjà clôturé.")
+        
+        # Interdire la clôture d'un parent s'il a des enfants actifs
+        if self.child_accounts:
+            active_children = [c for c in self.child_accounts if c.is_active]
+            if active_children:
+                raise ValueError("Impossible de clôturer un compte parent tant que des comptes secondaires sont actifs.")
+        
+        # Transfert du solde vers le parent si compte secondaire
+        if self.balance > 0 and self.parent_account:
+            self.transfer_to(self.parent_account, self.balance)
+
+        self.is_active = False
+        self.closed_at = datetime.now(timezone.utc)
+
+    def archive(self) -> "ArchivedBankAccount":
+        """
+        Crée une archive complète du compte clôturé,
+        incluant la référence au compte parent (si secondaire).
+        """
+        if self.is_active:
+            raise ValueError("Impossible d’archiver un compte encore actif.")
+        if not self.closed_at:
+            raise ValueError("Le compte doit être clôturé avant archivage.")
+
+        return ArchivedBankAccount(
+            original_account_number=self.account_number,
+            balance=self.balance,
+            closed_at=self.closed_at,
+            parent_account_number=self.parent_account_number,
+            archived_at=datetime.now(timezone.utc)
+        )
+
 
     # Effectuer un dépôt sur le compte
     def deposit(self, amount: Decimal) -> Transaction:
@@ -148,3 +207,17 @@ class BankAccount(SQLModel, table=True):
 
         # Retourne le nouvel objet créé
         return new_beneficiary
+    
+    
+# ===============================
+# Table d’archive des comptes
+# ===============================
+class ArchivedBankAccount(SQLModel, table=True):
+    """Table séparée pour les comptes archivés."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    original_account_number: str = Field(index=True)
+    balance: Decimal
+    closed_at: datetime
+    parent_account_number: Optional[str] = Field(default=None) 
+    archived_at: datetime = Field(default_factory=datetime.now(timezone.utc)
+)

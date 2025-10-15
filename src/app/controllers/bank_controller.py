@@ -106,3 +106,45 @@ def list_beneficiaries(owner_account_number: str, session: Session = Depends(get
     """
     beneficiaries = bank_service.get_beneficiaries(session, owner_account_number)
     return [{"beneficiary_account_number": b} for b in beneficiaries]
+
+
+# ============================================================
+# Clôturer un compte
+# ============================================================
+@router.post("/accounts/{account_number}/close")
+def close_account(
+    account_number: str = Path(..., description="Numéro du compte à clôturer"),
+    session: Session = Depends(get_session)
+):
+    """
+    Clôture un compte bancaire :
+    - Le rend inactif (`is_active=False`)
+    - Transfère automatiquement le solde vers le compte parent si c'est un compte secondaire
+    - Vérifie qu'un compte parent avec enfants actifs ne peut pas être clôturé
+    - Enregistre la date de clôture (`closed_at`)
+    """
+    account = bank_service.close_account(session, account_number)
+    return {
+        "message": f"Le compte {account.account_number} a été clôturé avec succès.",
+        "closed_at": account.closed_at,
+        "parent_account_number": account.parent_account_number
+    }
+
+
+# ============================================================
+# Archiver un compte clôturé
+# ============================================================
+@router.post("/accounts/{account_number}/archive")
+def archive_account(
+    account_number: str = Path(..., description="Numéro du compte à archiver"),
+    reason: str = Body(default="Clôture du compte", embed=True),
+    session: Session = Depends(get_session)
+):
+    """
+    Archive un compte clôturé :
+    - Crée une entrée dans la table 'archived_bank_accounts'
+    - Conserve le lien parent-enfant
+    - Supprime le compte original
+    """
+    result = bank_service.archive_account(session, account_number, reason)
+    return result
