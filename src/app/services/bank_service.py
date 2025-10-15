@@ -1,79 +1,85 @@
-from decimal import Decimal
-from typing import Dict
 from fastapi import HTTPException
-from app.models.account import BankAccount
+from sqlmodel import Session, select
+from decimal import Decimal
+from app.models.account import BankAccount, Transaction
+from app.models.beneficiary import Beneficiary
+
 
 class BankService:
     def __init__(self):
-        self.accounts: Dict[str, BankAccount] = {
-            "COMPTE_EPARGNE": BankAccount("COMPTE_EPARGNE", Decimal("150")),
-            "COMPTE_COURANT": BankAccount("COMPTE_COURANT", Decimal("150")),
-            "COMPTE_JOINT": BankAccount("COMPTE_JOINT", Decimal("150")),
-        }
+        from app.db import create_db_and_tables
+        create_db_and_tables()
 
-    def get_account(self, account_number: str) -> BankAccount:
-        account = self.accounts.get(account_number)
+    def get_account(self, session: Session, account_number: str) -> BankAccount:
+        account = session.get(BankAccount, account_number)
         if not account:
             raise HTTPException(404, f"Compte '{account_number}' non trouvé")
         return account
 
-    def deposit(self, account_number: str, amount: Decimal):
-        account = self.get_account(account_number)
-        try:
-            return account.deposit(amount)
-        except ValueError as e:
-            raise HTTPException(400, str(e))
+    def deposit(self, session: Session, account_number: str, amount: Decimal) -> Transaction:
+        account = self.get_account(session, account_number)
+        transaction = account.deposit(amount)
+        session.add_all([account, transaction])
+        session.commit()
+        session.refresh(transaction)
+        return transaction
 
-    def transfer(self, from_acc: str, to_acc: str, amount: Decimal):
-        source = self.get_account(from_acc)
-        destination = self.get_account(to_acc)
-        try:
-            return source.transfer_to(destination, amount)
-        except ValueError as e:
-            raise HTTPException(400, str(e))
+    def transfer(self, session: Session, from_acc: str, to_acc: str, amount: Decimal) -> Transaction:
+        source = self.get_account(session, from_acc)
+        destination = self.get_account(session, to_acc)
+        transaction = source.transfer_to(destination, amount)
+        session.add_all([source, destination, transaction])
+        session.commit()
+        session.refresh(transaction)
+        return transaction
 
-    def add_beneficiary(self, owner_account_number: str, target_account_number: str):
-        owner_account = self.get_account(owner_account_number)
-        target_account = self.get_account(target_account_number)
+    def add_beneficiary(self, session: Session, owner_account_number: str, target_account_number: str) -> Beneficiary:
+        owner = self.get_account(session, owner_account_number)
+        target = self.get_account(session, target_account_number)
+        new_beneficiary = owner.add_beneficiary(target)
+        session.add(new_beneficiary)
+        session.commit()
+        session.refresh(new_beneficiary)
+        return new_beneficiary
 
-        try:
-            return owner_account.add_beneficiary(target_account)
-        except ValueError as e:
-            raise HTTPException(400, str(e))
+    def get_account_info(self, session: Session, account_number: str):
+        account = self.get_account(session, account_number)
 
-    def get_account_info(self, account_number: str):
-        bank_account = self.get_account(account_number)
-        
-        beneficiary_list = [
-            {
-                "beneficiary_name": beneficiary.name,
-                "beneficiary_account_number": beneficiary.beneficiary_account_number
-            }
-            for beneficiary in bank_account.beneficiaries.values()
-        ]
-        
-        transaction_list = [
-            {
-                "transaction_type": transaction.transaction_type,
-                "transaction_amount": transaction.amount,
-                "source_account_number": transaction.source_account_number,
-                "destination_account_number": transaction.destination_account_number,
-                "transaction_date": transaction.date
-            }
-            for transaction in bank_account.transactions
-        ]
-        
+        beneficiaries = session.exec(
+            select(Beneficiary.beneficiary_account_number)
+            .where(Beneficiary.owner_account_number == account_number)
+        ).all()
+
+        transactions = session.exec(
+            select(Transaction)
+            .where(
+                (Transaction.source_account_number == account_number) |
+                (Transaction.destination_account_number == account_number)
+            )
+        ).all()
+
         return {
-            "account_number": bank_account.account_number,
-            "current_balance": bank_account.balance,
-            "beneficiaries": beneficiary_list,
-            "transactions": transaction_list
+            "account_number": account.account_number,
+            "current_balance": account.balance,
+            "beneficiaries": [{"beneficiary_account_number": b} for b in beneficiaries],
+            "transactions": [
+                {
+                    "transaction_type": t.transaction_type,
+                    "transaction_amount": t.amount,
+                    "source_account_number": t.source_account_number,
+                    "destination_account_number": t.destination_account_number,
+                    "transaction_date": t.date
+                }
+                for t in transactions
+            ]
         }
-        
-    def get_beneficiaries(self, account_number: str):
-        bank_account = self.get_account(account_number)
-        return list(bank_account.beneficiaries)
+
+    def get_beneficiaries(self, session: Session, account_number: str):
+        return session.exec(
+            select(Beneficiary.beneficiary_account_number)
+            .where(Beneficiary.owner_account_number == account_number)
+        ).all()
 
 
-# instance unique du service
+# instance unique
 bank_service = BankService()
