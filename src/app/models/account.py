@@ -10,7 +10,7 @@ from sqlmodel import Field, Relationship, SQLModel
 # ------------------------------
 class Transaction(SQLModel, table=True):
     # Identifiant unique de la transaction (clé primaire)
-    id: Optional[int] = Field(default=None, primary_key=True)
+    transaction_id: Optional[int] = Field(default=None, primary_key=True)
 
     # Type de transaction (exemples : "deposit", "transfer", etc.)
     transaction_type: str

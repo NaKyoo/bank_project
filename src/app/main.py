@@ -3,7 +3,8 @@ from fastapi import FastAPI
 import uvicorn                                     
 from sqlmodel import Session, select, SQLModel, create_engine  
 from app.controllers import bank_controller        
-from app.models.account import BankAccount         
+from app.models.account import BankAccount 
+from app.models.account import Transaction        
 
 engine = create_engine("sqlite:///bank.db")
 
@@ -32,8 +33,14 @@ async def lifespan(app: FastAPI):
                 BankAccount(account_number="COMPTE_COURANT", balance=150),
                 BankAccount(account_number="COMPTE_JOINT", balance=150),
             ]
+            #...ici on créé des transactions en dur 
+            transaction = [
+                Transaction(transaction_id=1)
+            ]
+            
             # On ajoute les comptes dans la session et on enregistre en base
             session.add_all(comptes)
+            session.add_all(transaction)
             session.commit()
 
     # Le code suivant (après yield) s’exécutera à la fermeture de l’application.

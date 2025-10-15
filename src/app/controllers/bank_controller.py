@@ -5,9 +5,11 @@ from sqlmodel import Session
 
 from app.models.transfer import TransferRequest, Transfer  
 from app.services.bank_service import bank_service          
-from app.db import get_session                              
+from app.db import get_session          
 
-
+from fastapi import HTTPException 
+from app.models.account import Transaction   
+                
 # ------------------------------
 # Création du routeur principal de l’application
 # ------------------------------
@@ -106,3 +108,29 @@ def list_beneficiaries(owner_account_number: str, session: Session = Depends(get
     """
     beneficiaries = bank_service.get_beneficiaries(session, owner_account_number)
     return [{"beneficiary_account_number": b} for b in beneficiaries]
+
+
+@router.get("/transaction/{transaction_id}" , response_model=Transaction)
+# session va permettre de lire  et trasaction_id est récupérer depuis l'url
+def detail_transaction( transaction_id: int , session: Session = Depends(get_session)): 
+    # transaction est un objet Transaction, résultat de DB (objet ou None)
+    # retourn l'instance transaction dont le PK vaut transaction_id
+    #transaction = session.get(Transaction , transaction_id) # interroge la DB pourt savoir si il y a une transaction  
+    transaction = session.exec(text("""
+                                    SELECT  t.transaction_id, 
+                                            t.transaction_type, 
+                                            t.amount, 
+                                            t.source_account_number, 
+                                            t.destination_account_number,
+                                            t.date
+                                            u.name 
+                                    FROM transaction AS t
+                                    INNER JOIN bankaccount AS b ON b.source_account_number = transaction.source_account_number
+                                    INNER JOIN user AS u ON u.user_id = b.user_id
+                                    WHERE transaction_id = {trasaction_id}
+                                    """
+                                    ))
+    if not transaction :
+        raise HTTPException(status_code=404, detail="Id transaction not found")
+    return transaction
+
