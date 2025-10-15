@@ -81,6 +81,10 @@ class BankAccount(SQLModel, table=True):
         # Vérifie que le montant est positif
         if amount <= 0:
             raise ValueError("Le montant du dépôt doit être positif")
+        
+        # Vérifie que le montant ne dépasse pas 2000 €
+        if amount > Decimal('2000'):
+            raise ValueError("Le dépôt ne peut pas dépasser 2000 € par opération")
 
         # Ajoute le montant au solde actuel
         self.balance += amount
