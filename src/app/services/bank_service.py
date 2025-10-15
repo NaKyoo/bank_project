@@ -10,23 +10,7 @@ from app.models.beneficiary import Beneficiary
 # Service bancaire principal
 # ------------------------------
 class BankService:
-    """
-    Cette classe regroupe les opérations principales du système bancaire :
-    - gestion des comptes (dépôt, transfert)
-    - gestion des bénéficiaires
-    - consultation d’informations de compte
-
-    Elle agit comme une couche métier entre la base de données (SQLModel)
-    et les routes FastAPI.
-    """
-
-    def __init__(self):
-        """
-        Initialise le service et s’assure que la base de données et les tables
-        sont bien créées au démarrage.
-        """
-        from app.db import create_db_and_tables  # Import local pour éviter une boucle d’importation
-        create_db_and_tables()                   # Création automatique des tables si elles n’existent pas
+   
 
 
     # ------------------------------
@@ -155,6 +139,30 @@ class BankService:
             select(Beneficiary.beneficiary_account_number)
             .where(Beneficiary.owner_account_number == account_number)
         ).all()
+    
+
+    # Historique des transactions d'un compte
+    def get_transaction_history(self, session: Session, account_number: str):
+        
+        account = self.get_account(session, account_number)
+        return account.get_transaction_history()
+
+
+    # renvoit les comptes d'un utilisateur
+    def get_user_accounts(self, session: Session, user_id: int):
+        from app.models.account import BankAccount
+        accounts = session.exec(
+            select(BankAccount)
+            .where(BankAccount.user_id == user_id)
+            .order_by(BankAccount.creation_date.desc())
+        ).all()
+        return [
+            {
+                "account_number": acc.account_number,
+                "balance": acc.balance
+            }
+            for acc in accounts
+        ]
 
 
 # ------------------------------

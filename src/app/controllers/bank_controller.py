@@ -106,3 +106,16 @@ def list_beneficiaries(owner_account_number: str, session: Session = Depends(get
     """
     beneficiaries = bank_service.get_beneficiaries(session, owner_account_number)
     return [{"beneficiary_account_number": b} for b in beneficiaries]
+
+
+# Historique des transactions d’un compte
+@router.get("/accounts/{account_number}/transactions")
+def get_account_transactions(account_number: str, session: Session = Depends(get_session)):
+    
+    return bank_service.get_transaction_history(session, account_number)
+
+
+@router.get("/users/{user_id}/accounts")
+def get_user_accounts(user_id: int, session: Session = Depends(get_session)):
+    
+    return bank_service.get_user_accounts(session, user_id)

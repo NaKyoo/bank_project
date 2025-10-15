@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import List, Optional  
 
 from sqlmodel import Field, Relationship, SQLModel
+from app.models.user import User
 
 
 # ------------------------------
@@ -50,6 +51,8 @@ class BankAccount(SQLModel, table=True):
     # Solde du compte (par défaut à 0)
     balance: Decimal = Field(default=Decimal("0"))
 
+    creation_date: datetime = Field(default_factory=datetime.now)
+
     # ------------------------------
     # Relations avec d'autres tables
     # ------------------------------
@@ -71,6 +74,9 @@ class BankAccount(SQLModel, table=True):
         back_populates="owner",
         sa_relationship_kwargs={"foreign_keys": "[Beneficiary.owner_account_number]"}
     )
+
+    user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
+
 
     # ------------------------------
     # Méthodes métier (logique applicative)
@@ -144,3 +150,18 @@ class BankAccount(SQLModel, table=True):
 
         # Retourne le nouvel objet créé
         return new_beneficiary
+ 
+
+    # Obtenir l'historique des transactions triées par date décroissante
+    def get_transaction_history(self) -> list:
+        all_transactions = self.transactions + self.incoming_transactions
+        sorted_transactions = sorted(all_transactions, key=lambda t: t.date, reverse=True)
+        return [
+            {
+                "amount": t.amount,
+                "date": t.date,
+                "source": t.source_account_number,
+                "destination": t.destination_account_number
+            }
+            for t in sorted_transactions
+        ]
