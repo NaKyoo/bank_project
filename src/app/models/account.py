@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import List, Optional  
 
 from sqlmodel import Field, Relationship, SQLModel
+from src.app.models.user import User
 
 
 # ------------------------------
@@ -24,10 +25,14 @@ class Transaction(SQLModel, table=True):
     # Numéro du compte destinataire (clé étrangère vers la table BankAccount)
     destination_account_number: Optional[str] = Field(default=None, foreign_key="bankaccount.account_number")
 
+    source_name: str | None
+    
+    destination_name: str | None
+    
     # Date et heure de la transaction (valeur par défaut : maintenant)
-    date: datetime = Field(default_factory=datetime.now)
+    date: datetime = Field(default_factory=datetime.now) 
 
-    # Relation vers le compte source (le compte qui envoie l'argent)
+    # Relation vers le compte source (le compte qui envoie l'argent) transaction<>bankAccount
     source_account: Optional["BankAccount"] = Relationship(
         back_populates="transactions",  # Nom du champ correspondant dans BankAccount
         sa_relationship_kwargs={"foreign_keys": "[Transaction.source_account_number]"}  # Spécifie la clé étrangère
@@ -49,7 +54,9 @@ class BankAccount(SQLModel, table=True):
 
     # Solde du compte (par défaut à 0)
     balance: Decimal = Field(default=Decimal("0"))
-
+    
+    user_id: int = Field(default=None, foreign_key="user.user_id")
+    
     # ------------------------------
     # Relations avec d'autres tables
     # ------------------------------
@@ -71,6 +78,7 @@ class BankAccount(SQLModel, table=True):
         back_populates="owner",
         sa_relationship_kwargs={"foreign_keys": "[Beneficiary.owner_account_number]"}
     )
+    
 
     # ------------------------------
     # Méthodes métier (logique applicative)

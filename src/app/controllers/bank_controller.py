@@ -8,7 +8,8 @@ from app.services.bank_service import bank_service
 from app.db import get_session          
 
 from fastapi import HTTPException 
-from app.models.account import Transaction   
+from app.models.account import Transaction , BankAccount
+from app.models.user import User  
                 
 # ------------------------------
 # Création du routeur principal de l’application
@@ -115,22 +116,18 @@ def list_beneficiaries(owner_account_number: str, session: Session = Depends(get
 def detail_transaction( transaction_id: int , session: Session = Depends(get_session)): 
     # transaction est un objet Transaction, résultat de DB (objet ou None)
     # retourn l'instance transaction dont le PK vaut transaction_id
-    #transaction = session.get(Transaction , transaction_id) # interroge la DB pourt savoir si il y a une transaction  
-    transaction = session.exec(text("""
-                                    SELECT  t.transaction_id, 
-                                            t.transaction_type, 
-                                            t.amount, 
-                                            t.source_account_number, 
-                                            t.destination_account_number,
-                                            t.date
-                                            u.name 
-                                    FROM transaction AS t
-                                    INNER JOIN bankaccount AS b ON b.source_account_number = transaction.source_account_number
-                                    INNER JOIN user AS u ON u.user_id = b.user_id
-                                    WHERE transaction_id = {trasaction_id}
-                                    """
-                                    ))
+    transaction = session.get(Transaction , transaction_id) # interroge la DB pourt savoir si il y a une transaction  
     if not transaction :
         raise HTTPException(status_code=404, detail="Id transaction not found")
+    else : 
+        src_acc = session.get(BankAccount, transaction.source_account_number)
+        src_user = session.get(User, src_acc.user_id)
+        src_name = src_user.name or None
+        
+        dst_acc = session.get(BankAccount, transaction.destination_account_number)
+        dst_user = session.get(User, dst_acc.user_id)
+        dst_name = dst_user.name or None
+        
+        transaction.source_name = src_name
+        transaction.destination_name = dst_name
     return transaction
-
