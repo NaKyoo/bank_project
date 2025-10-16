@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Path, Depends        
+from datetime import time
+import threading
+from fastapi import APIRouter, HTTPException, Path, Depends       
 from decimal import Decimal                         
 from fastapi.params import Body                     
-from sqlmodel import Session                        
+from sqlmodel import Session  
+                 
 
 from app.models.transfer import TransferRequest, Transfer  
 from app.services.bank_service import bank_service          
@@ -14,12 +17,28 @@ from app.db import get_session
 router = APIRouter()
 # Ce routeur regroupe les routes liées à la gestion des comptes et transferts bancaires.
 
+transfer_counter = 0
+transfers_in_progress = {}
 
 @router.get("/")
 async def read_root():
     """Route de test pour vérifier que l’API fonctionne."""
     return {"message": "Hello, FastAPI!"}
 
+
+# ------------------------------
+# Modifie auto pour finaliser les transferts après un délai
+# ------------------------------
+def transfer_delay(transfer_id: int):
+    """Fonction qui attend 5 secondes puis finalise le transfert s’il n’=a pas été annulé."""
+    time.sleep(5)  # Bloque ce thread pendant 5 secondes
+    transfer = transfers_in_progress.get(transfer_id)
+    
+    if transfer and transfer.status == "pending":
+        transfer.status = "completed"
+        print(f"Transfert #{transfer_id} finalisé automatiquement.")
+        # Ici tu peux enregistrer en base si nécessaire
+        del transfers_in_progress[transfer_id]
 
 # ------------------------------
 # Effectuer un transfert entre deux comptes
@@ -32,6 +51,8 @@ def make_transfer(request: TransferRequest, session: Session = Depends(get_sessi
     - Crée une transaction de type 'transfer'
     - Renvoie les informations du transfert effectué
     """
+    global transfer_counter
+    
     # Appel du service pour exécuter le transfert
     result = bank_service.transfer(
         session,
@@ -41,14 +62,45 @@ def make_transfer(request: TransferRequest, session: Session = Depends(get_sessi
     )
 
     # Retourne une instance du modèle Transfer (réponse API)
-    return Transfer(
+    transfer_counter += 1
+    transfer = Transfer(
+        id=transfer_counter,
         date=result.date,
         from_account=request.from_account,
         to_account=request.to_account,
         amount=request.amount,
-        status="completed"
+        status="pending"
     )
 
+    transfers_in_progress[transfer.id] = transfer
+
+    # Lancer un thread pour finaliser le transfert après 5 secondes
+    thread = threading.Thread(target=transfer_delay, args=(transfer.id,))
+    thread.start()
+
+    return transfer
+
+# ------------------------------
+# Annuler un transfert en cours
+# ------------------------------
+@router.post("/transfer/{transfer_id}/cancel")
+def cancel_transfer(transfer_id: int):
+    """Annule un transfert dans les 5 secondes suivant sa création."""
+    transfer = transfers_in_progress.get(transfer_id)
+    if not transfer:
+        raise HTTPException(status_code=404, detail="Transfert introuvable ou déjà finalisé.")
+    
+    if transfer.status != "pending":
+        raise HTTPException(status_code=400, detail="Transfert déjà finalisé ou annulé.")
+    
+    if not transfer.can_be_cancelled():
+        raise HTTPException(status_code=400, detail="Le délai de 5 secondes est expiré.")
+    
+    # Remboursement du compte source, si tu veux faire la logique inverse ici
+    transfer.status = "cancelled"
+    del transfers_in_progress[transfer_id]
+
+    return {"message": f"Transfert #{transfer_id} annulé avec succès."}
 
 # ------------------------------
 # Effectuer un dépôt sur un compte
