@@ -302,6 +302,9 @@ def login_user(payload: UserLoginRequest, session: Session = Depends(get_session
         email=db_user.email,
     )
     
+# ============================================================
+# Récupérer les informations de l'utilisateur courant via le token JWT
+# ============================================================
 @router.get("/users/me")
 def read_current_user(current_user: dict = Depends(get_current_user)):
     return current_user
