@@ -5,6 +5,7 @@ from sqlmodel import Session
 
 from app.models.account import BankAccount, Transaction, TransactionStatus
 from app.models.transfer import TransferRequest, Transfer  
+from app.models.user import User
 from app.services.bank_service import bank_service          
 from app.db import get_session                              
 
@@ -203,3 +204,36 @@ def archive_account(
     """
     result = bank_service.archive_account(session, account_number, reason)
     return result
+
+
+@router.get("/users/{user_id}/accounts")
+def get_all_user_accounts(
+    user_id: int = Path(..., description="ID de l'utilisateur dont on souhaite récupérer les comptes"),
+    session: Session = Depends(get_session)
+):
+    """
+    Récupère tous les comptes bancaires liés à un utilisateur.
+    Retourne une liste de comptes avec leurs informations principales.
+    """
+
+    # Récupération de l'utilisateur
+    user_record = session.get(User, user_id)
+    if not user_record:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    # Construction de la liste des comptes de l'utilisateur
+    accounts_info = [
+        {
+            "account_number": account.account_number,
+            "current_balance": account.balance,
+            "is_active": account.is_active,
+            "parent_account_number": account.parent_account_number
+        }
+        for account in user_record.bank_accounts
+    ]
+
+    return {
+        "user_id": user_record.id,
+        "username": user_record.username,
+        "accounts": accounts_info
+    }

@@ -1,8 +1,11 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlmodel import Session, select, SQLModel, create_engine
+
+
 from app.controllers import bank_controller
 from app.models.account import BankAccount
+from app.models.user import User
 
 engine = create_engine("sqlite:///bank.db")
 
@@ -23,25 +26,38 @@ async def lifespan(app: FastAPI):
 
     # Ouverture d’une session temporaire pour insérer des comptes de démonstration
     with Session(engine) as session:
+        
+        if not session.exec(select(User).where(User.username == "Eric")).first():    
+            user = User(
+                    username="Eric",
+                    is_active=True
+                )
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            
         # Si aucun compte n’existe encore dans la base...
         if not session.exec(select(BankAccount)).first():
             # Création des comptes bancaires de base
             compte_courant = BankAccount(
                 account_number="COMPTE_COURANT",
                 balance=150,
-                parent_account_number=None  # Compte principal
+                parent_account_number=None,  # Compte principal
+                owner_id=user.id   
             )
 
             comptes_secondaires = [
                 BankAccount(
                     account_number="COMPTE_EPARGNE",
                     balance=150,
-                    parent_account_number="COMPTE_COURANT"  # Rattaché au compte courant
+                    parent_account_number="COMPTE_COURANT",  # Rattaché au compte courant
+                    owner_id=user.id   
                 ),
                 BankAccount(
                     account_number="COMPTE_JOINT",
                     balance=150,
-                    parent_account_number="COMPTE_COURANT"  # Rattaché au compte courant
+                    parent_account_number="COMPTE_COURANT",  # Rattaché au compte courant
+                    owner_id=user.id
                 ),
             ]
 
@@ -49,6 +65,9 @@ async def lifespan(app: FastAPI):
             session.add(compte_courant)
             session.add_all(comptes_secondaires)
             session.commit()
+            
+            session.refresh(user)
+            
 
     # Le code suivant (après yield) s’exécutera à la fermeture de l’application.
     yield

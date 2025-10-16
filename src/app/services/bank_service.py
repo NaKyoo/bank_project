@@ -312,6 +312,47 @@ class BankService:
 
 
 
+def get_transaction(session: Session, transaction_id: int, user_account_number: str):
+    from sqlalchemy.orm import selectinload
+    from sqlmodel import select
+    from app.models.account import TransactionStatus
+
+    # Requête pour récupérer la transaction avec les comptes liés
+    statement = (
+        select(Transaction)
+        .where(Transaction.id == transaction_id)
+        .where(
+            ((Transaction.source_account_number == user_account_number) |
+             (Transaction.destination_account_number == user_account_number)) &
+            (Transaction.status == TransactionStatus.COMPLETED)
+        )
+        .options(
+            selectinload(Transaction.source_account),
+            selectinload(Transaction.destination_account)
+        )
+    )
+
+    transaction = session.exec(statement).first()
+
+    if not transaction:
+        raise HTTPException(404, "Transaction introuvable, non autorisée ou pas encore complétée")
+
+    return {
+        "transaction_id": transaction.id,
+        "transaction_type": transaction.transaction_type,
+        "amount": transaction.amount,
+        "date": transaction.date,
+        "source_account": {
+            "account_number": transaction.source_account_number,
+            "balance": transaction.source_account.balance if transaction.source_account else None
+        },
+        "destination_account": {
+            "account_number": transaction.destination_account_number,
+            "balance": transaction.destination_account.balance if transaction.destination_account else None
+        }
+    }
+
+
 
 # ------------------------------
 # Instance unique (singleton) du service

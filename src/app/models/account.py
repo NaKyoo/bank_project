@@ -75,6 +75,11 @@ class BankAccount(SQLModel, table=True):
     is_active: bool = Field(default=True)
     closed_at: Optional[datetime] = Field(default=None)
     
+    owner_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    owner: Optional["User"] = Relationship( # type: ignore
+        back_populates="bank_accounts",
+        sa_relationship_kwargs={"foreign_keys": "[BankAccount.owner_id]"}
+    )
 
     # ==============================
     # Lien parent-enfant
