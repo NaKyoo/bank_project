@@ -8,7 +8,8 @@ from sqlmodel import Session
 
 from app.models.transfer import TransferRequest, Transfer  
 from app.services.bank_service import bank_service          
-from app.db import get_session                              
+from app.db import get_session   
+from app.services.transfer_manager import transfers_in_progress, transfer_counter                           
 
 
 # ------------------------------
@@ -16,9 +17,6 @@ from app.db import get_session
 # ------------------------------
 router = APIRouter()
 # Ce routeur regroupe les routes liées à la gestion des comptes et transferts bancaires.
-
-transfer_counter = 0
-transfers_in_progress = {}
 
 @router.get("/")
 async def read_root():
@@ -31,13 +29,12 @@ async def read_root():
 # ------------------------------
 def transfer_delay(transfer_id: int):
     """Fonction qui attend 5 secondes puis finalise le transfert s’il n’=a pas été annulé."""
-    time.sleep(5)  # Bloque ce thread pendant 5 secondes
+    threading.Event().wait(5)
     transfer = transfers_in_progress.get(transfer_id)
     
     if transfer and transfer.status == "pending":
         transfer.status = "completed"
         print(f"Transfert #{transfer_id} finalisé automatiquement.")
-        # Ici tu peux enregistrer en base si nécessaire
         del transfers_in_progress[transfer_id]
 
 # ------------------------------
@@ -74,9 +71,8 @@ def make_transfer(request: TransferRequest, session: Session = Depends(get_sessi
 
     transfers_in_progress[transfer.id] = transfer
 
-    # Lancer un thread pour finaliser le transfert après 5 secondes
-    thread = threading.Thread(target=transfer_delay, args=(transfer.id,))
-    thread.start()
+    # Thread pour finaliser le transfert
+    threading.Thread(target=transfer_delay, args=(transfer.id,)).start()
 
     return transfer
 

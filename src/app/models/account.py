@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import List, Optional  
 
 from sqlmodel import Field, Relationship, SQLModel
+from app.services.transfer_manager import transfers_in_progress
 
 
 # ------------------------------
@@ -102,6 +103,13 @@ class BankAccount(SQLModel, table=True):
         """Clôture le compte et transfère le solde au parent si nécessaire"""
         if not self.is_active:
             raise ValueError("Le compte est déjà clôturé.")
+        
+        # Vérifie s'il y a un transfert en cours et empêche la clôture si c'est le cas
+        for t in transfers_in_progress.values():
+            if t.status == "pending" and (
+                t.from_account == self.account_number or t.to_account == self.account_number
+            ):
+                raise ValueError("Impossible de clôturer le compte car un transfert est en cours.")
         
         # Interdire la clôture d'un parent s'il a des enfants actifs
         if self.child_accounts:
