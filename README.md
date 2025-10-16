@@ -37,21 +37,6 @@ Reproductibilité
 
 - Les versions des dépendances sont verrouillées dans `requirements.txt`. Si quelqu'un doit mettre à jour une dépendance, ouvrez une PR et documentez le changement dans la description.
 
-Développement
- 
-- Pour installer les dépendances de développement (tests, formatage, reload), activez le venv puis :
-
-```
-pip install -r requirements-dev.txt
-```
-
-- Pour lancer les tests :
-
-```
-pytest
-```
-
-
 Dépannage rapide
 
 - ModuleNotFoundError: `app.main` — lance `run.bat` depuis la racine du repo et vérifie que `src\app` existe.
