@@ -1,12 +1,13 @@
 from fastapi import APIRouter, HTTPException, Path, Depends        
 from decimal import Decimal                         
 from fastapi.params import Body                     
-from sqlmodel import Session                        
+from sqlmodel import Session, select                        
 
 from app.models.account import BankAccount, Transaction, TransactionStatus
 from app.models.transfer import TransferRequest, Transfer  
 from app.services.bank_service import bank_service          
 from app.db import get_session                              
+from app.models.user import UserCreate, UserRead, UserUpdate
 
 
 # ------------------------------
@@ -150,6 +151,57 @@ def get_account_transactions(account_number: str, session: Session = Depends(get
 def get_user_accounts(user_id: int, session: Session = Depends(get_session)):
     
     return bank_service.get_user_accounts(session, user_id)
+
+
+# ------------------------------
+# User endpoints
+# ------------------------------
+@router.post("/users", response_model=UserRead, status_code=201)
+def create_user(user_in: UserCreate, session: Session = Depends(get_session)):
+    user = bank_service.create_user(session, email=user_in.email, password=user_in.password, name=user_in.name, last_name=user_in.last_name, phone=user_in.phone, role=user_in.role)
+    return user
+
+
+@router.get("/users")
+def list_users(session: Session = Depends(get_session)):
+    # Endpoint utilitaire pour lister les users (debug / admin)
+    from app.models.user import User as UserModel
+    users = session.exec(select(UserModel)).all()
+    return [
+        {
+            "user_id": u.user_id,
+            "email": u.email,
+            "name": u.name,
+            "last_name": u.last_name,
+            "phone": u.phone,
+            "is_active": u.is_active,
+            "role": u.role,
+            "creation_date": u.creation_date,
+            "last_login": u.last_login
+        }
+        for u in users
+    ]
+
+
+@router.get("/users/{user_id}", response_model=UserRead)
+def read_user(user_id: int, session: Session = Depends(get_session)):
+    return bank_service.get_user(session, user_id)
+
+
+@router.patch("/users/{user_id}", response_model=UserRead)
+def patch_user(user_id: int, user_in: UserUpdate, session: Session = Depends(get_session)):
+    updated = bank_service.update_user(session, user_id, **user_in.dict(exclude_unset=True))
+    return updated
+
+
+@router.post("/users/{user_id}/deactivate", response_model=UserRead)
+def deactivate_user(user_id: int, session: Session = Depends(get_session)):
+    return bank_service.deactivate_user(session, user_id)
+
+
+@router.post("/users/{user_id}/last_login", response_model=UserRead)
+def set_last_login(user_id: int, session: Session = Depends(get_session)):
+    return bank_service.set_last_login(session, user_id)
 # ============================================================
 # Ouvrir un compte
 # ============================================================

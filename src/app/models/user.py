@@ -29,15 +29,10 @@ class User(SQLModel, table=True):
     # Relation inverse vers les comptes (import retardé via string pour éviter import circulaire)
     accounts: List["BankAccount"] = Relationship(back_populates="user")
 
-    # -----------------
-    # Helpers (KISS)
-    # -----------------
     def set_password(self, plain_password: str) -> None:
-        """Hash and store a password (bcrypt)."""
         self.password_hash = pwd_context.hash(plain_password)
 
     def verify_password(self, plain_password: str) -> bool:
-        """Verify a plain password against the stored hash."""
         try:
             return pwd_context.verify(plain_password, self.password_hash)
         except Exception:
@@ -45,6 +40,38 @@ class User(SQLModel, table=True):
 
     @property
     def full_name(self) -> str:
-        """Return the user's full name (concatenation)."""
         parts = [p for p in (self.name, self.last_name) if p]
         return " ".join(parts)
+
+
+class UserCreate(SQLModel):
+    email: str
+    password: str
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    role: str = "customer"
+
+
+class UserRead(SQLModel):
+    user_id: Optional[int]
+    email: str
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    is_active: bool = True
+    role: str = "customer"
+    creation_date: datetime
+    last_login: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
+
+
+class UserUpdate(SQLModel):
+    name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = None

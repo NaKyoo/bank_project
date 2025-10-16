@@ -7,6 +7,8 @@ from decimal import Decimal
 from app.db import engine
 from app.models.account import BankAccount, Transaction, TransactionStatus
 from app.models.beneficiary import Beneficiary
+from app.models.user import User
+from datetime import datetime, timezone
 
 
 # ------------------------------
@@ -228,6 +230,66 @@ class BankService:
             }
             for acc in accounts
         ]
+
+
+    # User management
+    def get_user(self, session: Session, user_id: int) -> User:
+        user = session.get(User, user_id)
+        if not user:
+            raise HTTPException(404, f"User with id {user_id} not found")
+        return user
+    
+
+    def get_user_by_email(self, session: Session, email: str) -> User | None:
+        return session.exec(select(User).where(User.email == email)).first()
+    
+
+    def create_user(self, session: Session, email: str, password: str, name: str | None = None, last_name: str | None = None, phone: str | None = None, role: str = "customer") -> User:
+        existing = self.get_user_by_email(session, email)
+        if existing:
+            raise HTTPException(400, "Un utilisateur avec cet email existe déjà")
+
+        user = User(email=email, name=name, last_name=last_name, phone=phone, role=role)
+        user.set_password(password)
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return user
+    
+
+    def update_user(self, session: Session, user_id: int, **fields) -> User:
+        user = self.get_user(session, user_id)
+        if "password" in fields and fields["password"]:
+            user.set_password(fields.pop("password"))
+
+        allowed = {"name", "last_name", "phone", "role", "is_active"}
+        for k, v in list(fields.items()):
+            if k in allowed:
+                setattr(user, k, v)
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return user
+    
+
+    def deactivate_user(self, session: Session, user_id: int) -> User:
+        user = self.get_user(session, user_id)
+        user.is_active = False
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return user
+
+
+    def set_last_login(self, session: Session, user_id: int) -> User:
+        user = self.get_user(session, user_id)
+        user.last_login = datetime.now(timezone.utc)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return user
         
     # ============================================================
     # Ouverture d’un compte

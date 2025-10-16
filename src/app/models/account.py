@@ -42,8 +42,8 @@ class Transaction(SQLModel, table=True):
     # Numéro du compte destinataire (clé étrangère vers la table BankAccount)
     destination_account_number: Optional[str] = Field(default=None, foreign_key="bankaccount.account_number")
 
-    # Date et heure de la transaction (valeur par défaut : maintenant)
-    date: datetime = Field(default_factory=datetime.now)
+    # Date et heure de la transaction (valeur par défaut : maintenant, timezone-aware)
+    date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Statut actuel de la transaction
     status: TransactionStatus = Field(default=TransactionStatus.PENDING)
@@ -72,7 +72,7 @@ class BankAccount(SQLModel, table=True):
     # Solde du compte (par défaut à 0)
     balance: Decimal = Field(default=Decimal("0"))
 
-    creation_date: datetime = Field(default_factory=datetime.now)
+    creation_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     
     
@@ -329,8 +329,7 @@ class ArchivedBankAccount(SQLModel, table=True):
     balance: Decimal
     closed_at: datetime
     parent_account_number: Optional[str] = Field(default=None) 
-    archived_at: datetime = Field(default_factory=datetime.now(timezone.utc)
-)
+    archived_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
  
 
     # Obtenir l'historique des transactions triées par date décroissante
