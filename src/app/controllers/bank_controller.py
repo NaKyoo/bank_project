@@ -5,9 +5,12 @@ from sqlmodel import Session, select
 
 from app.models.account import BankAccount, Transaction, TransactionStatus
 from app.models.transfer import TransferRequest, Transfer  
-from app.models.user import User, UserRegisterRequest, UserRegisterResponse
+from app.models.user import User, UserLoginRequest, UserLoginResponse, UserRegisterRequest, UserRegisterResponse, create_access_token, get_current_user
 from app.services.bank_service import bank_service          
 from app.db import get_session                              
+
+from passlib.context import CryptContext
+
 
 
 # ------------------------------
@@ -235,6 +238,7 @@ def get_user_info(user_id: int = Path(..., description="ID de l'utilisateur"),
     return bank_service.get_user_full_info(session, user_id)
 
 # ============================================================
+# Enregistrer un nouvel utilisateur avec un compte bancaire principal
 # ============================================================
 
 @router.post("/users/register", response_model=UserRegisterResponse)
@@ -252,7 +256,7 @@ def register_user(payload: UserRegisterRequest,session: Session = Depends(get_se
         raise HTTPException(status_code=400, detail="Nom d'utilisateur déjà pris")
 
     # Crée l'utilisateur et son compte bancaire principal
-    new_user = User.register(email=payload.email, password=payload.email)  # type: ignore
+    new_user = User.register(email=payload.email, password=payload.password)  # type: ignore
 
     # Ajoute l'utilisateur et son compte à la session et commit en base
     session.add(new_user)
@@ -266,3 +270,38 @@ def register_user(payload: UserRegisterRequest,session: Session = Depends(get_se
         primary_account_number = new_user.bank_accounts[0].account_number
 
     )
+
+# ============================================================
+# Authentifier un utilisateur
+# ============================================================
+@router.post("/users/login", response_model=UserLoginResponse)
+def login_user(payload: UserLoginRequest, session: Session = Depends(get_session)):
+    """
+    Authentifie un utilisateur avec son email et mot de passe.
+    - Vérifie les informations d'identification
+    - Retourne les informations de l'utilisateur et son compte principal
+    """
+    
+    # Recherchez l'utilisateur par email
+    db_user = session.exec(select(User).where(User.email == payload.email)).first()
+    if not db_user:
+        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
+    
+    # Vérifiez le mot de passe
+    pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+    if not pwd_context.verify(payload.password, db_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
+    
+    # Créez un token JWT
+    access_token = create_access_token(db_user) # type: ignore
+
+    return UserLoginResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user_id=db_user.id,
+        email=db_user.email,
+    )
+    
+@router.get("/users/me")
+def read_current_user(current_user: dict = Depends(get_current_user)):
+    return current_user

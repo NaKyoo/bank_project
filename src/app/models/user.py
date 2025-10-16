@@ -1,6 +1,10 @@
+from datetime import datetime, timedelta , timezone
 from decimal import Decimal
 from typing import Annotated, List, Optional
 import uuid
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+import jwt
 from pydantic import BaseModel, EmailStr
 from pydantic.types import StringConstraints
 from sqlmodel import Relationship, SQLModel, Field
@@ -66,3 +70,39 @@ class UserLoginResponse(BaseModel):
     token_type: str = "bearer"
     user_id: int
     email: str
+
+
+# ------------------------------
+# Config JWT
+# ------------------------------
+
+bearer_scheme = HTTPBearer()
+
+SECRET_KEY = "caca"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+
+def create_access_token(user: User) -> str:
+    
+    payload = {
+        "sub": str(user.id),
+        "email": user.email,
+        "exp": datetime.now(tz=timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    }
+    
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    return token
+
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        return {
+            "user_id": payload["sub"],
+            "email": payload["email"]
+        }
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expiré")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token invalide")
