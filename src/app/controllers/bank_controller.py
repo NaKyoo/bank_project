@@ -1,16 +1,12 @@
-import time
-from datetime import datetime, timezone
-import threading
-from fastapi import APIRouter, HTTPException, Path, Depends       
+from fastapi import APIRouter, HTTPException, Path, Depends        
 from decimal import Decimal                         
 from fastapi.params import Body                     
-from sqlmodel import Session  
-                 
+from sqlmodel import Session                        
 
+from app.models.account import BankAccount, Transaction, TransactionStatus
 from app.models.transfer import TransferRequest, Transfer  
 from app.services.bank_service import bank_service          
-from app.db import get_session, engine   
-from app.services.transfer_manager import transfers_in_progress, transfer_counter                           
+from app.db import get_session                              
 
 
 # ------------------------------
@@ -19,43 +15,12 @@ from app.services.transfer_manager import transfers_in_progress, transfer_counte
 router = APIRouter()
 # Ce routeur regroupe les routes liées à la gestion des comptes et transferts bancaires.
 
+
 @router.get("/")
 async def read_root():
     """Route de test pour vérifier que l’API fonctionne."""
     return {"message": "Hello, FastAPI!"}
 
-
-# ------------------------------
-# Modifie auto pour finaliser les transferts après un délai
-# ------------------------------
-def transfer_delay(transfer_id: int):
-    """Fonction qui attend 5 secondes puis finalise le transfert s’il n’=a pas été annulé."""
-    time.sleep(5)
-
-    transfer = transfers_in_progress.get(transfer_id)
-    if not transfer:
-        return  
-
-    with Session(engine) as session:
-        source = bank_service.get_account(session, transfer.from_account)
-        dest = bank_service.get_account(session, transfer.to_account)
-
-        if not source or not dest:
-            transfer.status = "failed"
-            del transfers_in_progress[transfer_id]
-            return
-
-        # Applique le transfert
-        source.balance -= transfer.amount
-        dest.balance += transfer.amount
-
-        session.add(source)
-        session.add(dest)
-        session.commit()
-
-    transfer.status = "completed"
-    print(f"Transfert #{transfer_id} finalisé automatiquement.")
-    del transfers_in_progress[transfer_id]
 
 # ------------------------------
 # Effectuer un transfert entre deux comptes
@@ -68,8 +33,6 @@ def make_transfer(request: TransferRequest, session: Session = Depends(get_sessi
     - Crée une transaction de type 'transfer'
     - Renvoie les informations du transfert effectué
     """
-    global transfer_counter
-    
     # Appel du service pour exécuter le transfert
     result = bank_service.transfer(
         session,
@@ -79,44 +42,44 @@ def make_transfer(request: TransferRequest, session: Session = Depends(get_sessi
     )
 
     # Retourne une instance du modèle Transfer (réponse API)
-    transfer_counter += 1
-    transfer = Transfer(
-        id=transfer_counter,
+    return Transfer(
         date=result.date,
         from_account=request.from_account,
         to_account=request.to_account,
         amount=request.amount,
-        status="pending"
+        status="completed"
     )
 
-    transfers_in_progress[transfer.id] = transfer
 
-    # Thread pour finaliser le transfert
-    threading.Thread(target=transfer_delay, args=(transfer.id,)).start()
+@router.post("/transfer/{transaction_id}/cancel")
+def cancel_transaction(transaction_id: int, session: Session = Depends(get_session)):
+    # Récupère la transaction depuis la base via son ID
+    transaction = session.get(Transaction, transaction_id)
+    if not transaction:
+        raise HTTPException(404, "Transaction non trouvée")
 
-    return transfer
+    # Vérifie que la transaction est encore PENDING avant de l'annuler
+    if transaction.status != TransactionStatus.PENDING:
+        raise HTTPException(400, "Impossible d'annuler une transaction déjà complétée ou annulée")
 
-# ------------------------------
-# Annuler un transfert en cours
-# ------------------------------
-@router.post("/transfer/{transfer_id}/cancel")
-def cancel_transfer(transfer_id: int):
-    """Annule un transfert dans les 5 secondes suivant sa création."""
-    transfer = transfers_in_progress.get(transfer_id)
-    if not transfer:
-        raise HTTPException(status_code=404, detail="Transfert introuvable ou déjà finalisé.")
-    
-    if transfer.status != "pending":
-        raise HTTPException(status_code=400, detail="Transfert déjà finalisé ou annulé.")
-    
-    if not transfer.can_be_cancelled():
-        raise HTTPException(status_code=400, detail="Le délai de 5 secondes est expiré.")
-    
-    # Remboursement du compte source, si tu veux faire la logique inverse ici
-    transfer.status = "cancelled"
-    del transfers_in_progress[transfer_id]
+    # Récupère le compte source pour appliquer la logique métier d'annulation
+    source_account = session.get(BankAccount, transaction.source_account_number)
+    source_account.cancel_transfer(transaction)  # change le statut
 
-    return {"message": f"Transfert #{transfer_id} annulé avec succès."}
+
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    # Si on voulait supprimer la transaction de la base plutôt que de la marquer comme CANCELED
+    # session.delete(transaction)
+    # session.commit()
+
+    return {
+        "message": f"Transaction {transaction_id} annulée",
+        "status": transaction.status
+    }
+
 
 # ------------------------------
 # Effectuer un dépôt sur un compte

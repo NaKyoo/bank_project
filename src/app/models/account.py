@@ -2,10 +2,26 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List, Optional  
 
+from enum import Enum
 from sqlmodel import Field, Relationship, SQLModel
-from app.services.transfer_manager import transfers_in_progress
 
 
+
+class TransactionStatus(str, Enum):
+    """
+    Enumération représentant les différents états possibles d'une transaction.
+    
+    Attributes:
+        PENDING (str): La transaction a été créée mais n'a pas encore été exécutée.
+        COMPLETED (str): La transaction a été exécutée avec succès.
+        CANCELED (str): La transaction a été annulée et n'a pas été effectuée.
+    """
+    
+    PENDING = "pending"
+    COMPLETED = "completed"
+    CANCELED = "canceled"
+
+    
 # ------------------------------
 # Classe représentant une Transaction
 # ------------------------------
@@ -27,6 +43,10 @@ class Transaction(SQLModel, table=True):
 
     # Date et heure de la transaction (valeur par défaut : maintenant)
     date: datetime = Field(default_factory=datetime.now)
+
+    # Statut actuel de la transaction
+    status: TransactionStatus = Field(default=TransactionStatus.PENDING)
+
 
     # Relation vers le compte source (le compte qui envoie l'argent)
     source_account: Optional["BankAccount"] = Relationship(
@@ -104,13 +124,6 @@ class BankAccount(SQLModel, table=True):
         if not self.is_active:
             raise ValueError("Le compte est déjà clôturé.")
         
-        # Vérifie s'il y a un transfert en cours et empêche la clôture si c'est le cas
-        for t in transfers_in_progress.values():
-            if t.status == "pending" and (
-                t.from_account == self.account_number or t.to_account == self.account_number
-            ):
-                raise ValueError("Impossible de clôturer le compte car un transfert est en cours.")
-        
         # Interdire la clôture d'un parent s'il a des enfants actifs
         if self.child_accounts:
             active_children = [c for c in self.child_accounts if c.is_active]
@@ -163,26 +176,81 @@ class BankAccount(SQLModel, table=True):
             destination_account_number=self.account_number
         )
 
+    # ------------------------------
     # Effectuer un transfert vers un autre compte
+    # ------------------------------
     def transfer_to(self, target: "BankAccount", amount: Decimal) -> Transaction:
-        # Vérifie que le montant est valide
+        """
+        Crée une transaction de type 'transfer' PENDING vers un autre compte.
+        
+        Args:
+            target (BankAccount): Le compte destinataire.
+            amount (Decimal): Le montant du transfert.
+        
+        Returns:
+            Transaction: La transaction créée avec status PENDING.
+        
+        Raises:
+            ValueError: Si le montant est négatif, si le compte cible est le même,
+                        ou si le solde est insuffisant.
+        """
+        
         if amount <= 0:
             raise ValueError("Le montant du transfert doit être positif")
-
-        # Vérifie que le solde est suffisant
+        if self.account_number == target.account_number:
+            raise ValueError("Impossible de transférer vers soi-même")
         if self.balance < amount:
             raise ValueError("Solde insuffisant")
 
-        # Empêche de transférer vers soi-même
-        if self.account_number == target.account_number:
-            raise ValueError("Impossible de transférer vers soi-même")
+        # Crée la transaction PENDING
+        transaction = Transaction(
+            transaction_type="transfer",
+            amount=amount,
+            source_account_number=self.account_number,
+            destination_account_number=target.account_number,
+            status=TransactionStatus.PENDING
+        )
+        return transaction
 
-        return Transaction(
-        transaction_type="transfer",
-        amount=amount,
-        source_account_number=self.account_number,
-        destination_account_number=target.account_number,
-    )
+    # ------------------------------
+    # Compléter un transfert
+    # ------------------------------
+    def complete_transfer(self, target: "BankAccount", transaction: Transaction):
+        """
+        Applique un transfert existant : débite le compte source et crédite le compte destinataire.
+
+        Args:
+            target (BankAccount): Le compte destinataire.
+            transaction (Transaction): La transaction à compléter.
+
+        Raises:
+            ValueError: Si le solde est insuffisant (non géré ici mais peut être ajouté).
+        """
+        self.balance -= transaction.amount
+        target.balance += transaction.amount
+        transaction.status = TransactionStatus.COMPLETED
+        
+    # ------------------------------
+    # Annuler un transfert
+    # ------------------------------
+    def cancel_transfer(self, transaction: Transaction):
+        """
+        Annule une transaction PENDING. Logique métier pure (ne touche pas à la base de données).
+
+        Args:
+            transaction (Transaction): La transaction à annuler.
+
+        Returns:
+            Transaction: La transaction avec status mis à CANCELED.
+
+        Raises:
+            ValueError: Si la transaction n'est pas PENDING.
+        """
+        
+        if transaction.status != TransactionStatus.PENDING:
+            raise ValueError("Transaction déjà complétée ou annulée")
+        transaction.status = TransactionStatus.CANCELED
+        return transaction
 
     # Ajouter un compte bénéficiaire (autre compte autorisé à recevoir des transferts)
     def add_beneficiary(self, beneficiary_account: "BankAccount") -> "Beneficiary":  # type: ignore

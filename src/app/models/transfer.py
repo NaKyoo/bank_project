@@ -1,7 +1,6 @@
-from typing import Optional
 from pydantic import BaseModel, Field
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # ------------------------------
 # Classe représentant une requête de transfert (entrée utilisateur)
@@ -42,9 +41,6 @@ class Transfer(BaseModel):
     ou enregistré dans un historique.
     """
 
-    #Id du transfert
-    id: Optional[int] = Field(default=None, primary_key=True)
-
     # Date et heure du transfert (valeur par défaut : maintenant)
     date: datetime = Field(
         default_factory=datetime.now,
@@ -60,9 +56,5 @@ class Transfer(BaseModel):
     # Montant transféré
     amount: Decimal
 
-    # Statut du transfert (par défaut : "pending")
-    status: str = "pending"
-    
-    def can_be_cancelled(self) -> bool:
-        """Vérifie si le transfert peut encore être annulé (moins de 5 secondes écoulées)."""
-        return (datetime.now() - self.date) < timedelta(seconds=5)
+    # Statut du transfert (par défaut : "completed")
+    status: str = "completed"

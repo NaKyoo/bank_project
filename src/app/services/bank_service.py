@@ -1,9 +1,11 @@
-from typing import Optional
+from threading import Thread
+from time import sleep
 from fastapi import HTTPException             
 from sqlmodel import Session, select          
 from decimal import Decimal                   
 
-from app.models.account import BankAccount, Transaction
+from app.db import engine
+from app.models.account import BankAccount, Transaction, TransactionStatus
 from app.models.beneficiary import Beneficiary
 
 
@@ -72,15 +74,49 @@ class BankService:
     # Transfert entre deux comptes
     # ------------------------------
     def transfer(self, session: Session, from_acc: str, to_acc: str, amount: Decimal) -> Transaction:
-        """
-        Effectue un transfert d’argent entre deux comptes existants.
-        """
-        source = self.get_account(session, from_acc)           # Récupère le compte source
-        destination = self.get_account(session, to_acc)        # Récupère le compte destinataire
-        transaction = source.transfer_to(destination, amount)  # Effectue la logique du transfert
-        session.add_all([source, destination, transaction])    # Ajoute les modifications à la session
-        session.commit()                                       # Sauvegarde les changements
-        session.refresh(transaction)                           # Actualise la transaction
+        # Récupère les objets BankAccount correspondant aux numéros de compte
+        source = self.get_account(session, from_acc)
+        destination = self.get_account(session, to_acc)
+        
+        # Crée la transaction PENDING via la logique métier de BankAccount
+        transaction = source.transfer_to(destination, amount)
+        
+        # Ajoute la transaction à la session et commit pour la sauvegarder en base
+        session.add_all([transaction])
+        session.commit()
+        session.refresh(transaction) # Recharge la transaction avec l'ID généré
+
+        # Fonction interne pour finaliser la transaction après un délai
+        def delayed_complete(transaction_id: int):
+            sleep(5)  # Délai simulant le traitement asynchrone
+            with Session(engine) as new_session:
+                # Récupère la transaction depuis la base
+                transaction_from_db = new_session.get(Transaction, transaction_id)
+                if not transaction_from_db:
+                    return  # Si la transaction a été supprimée ou n'existe pas, abandon
+
+                # Vérifie que la transaction est encore PENDING
+                if transaction_from_db.status != TransactionStatus.PENDING:
+                    print(f"Transaction {transaction_from_db.id} annulée avant exécution.")
+                    return
+
+                # Récupère les comptes source et destination depuis la base
+                source_account_db = new_session.get(BankAccount, transaction_from_db.source_account_number)
+                destination_account_db = new_session.get(BankAccount, transaction_from_db.destination_account_number)
+
+                # Applique la logique de completion du transfert
+                source_account_db.complete_transfer(destination_account_db, transaction_from_db)
+
+                # Ajoute les comptes et la transaction modifiée à la session et commit
+                new_session.add_all([source_account_db, destination_account_db, transaction_from_db])
+                new_session.commit()
+                new_session.refresh(transaction_from_db)
+                print(f"Transaction {transaction_from_db.id} complétée !")
+
+        # Lance le traitement différé dans un thread séparé
+        Thread(target=delayed_complete, args=(transaction.id,), daemon=True).start()
+
+        # Retourne l'objet transaction créé immédiatement (statut PENDING)
         return transaction
 
 
