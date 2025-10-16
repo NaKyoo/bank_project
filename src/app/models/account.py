@@ -145,7 +145,15 @@ class BankAccount(SQLModel, table=True):
             active_children = [c for c in self.child_accounts if c.is_active]
             if active_children:
                 raise ValueError("Impossible de clôturer un compte parent tant que des comptes secondaires sont actifs.")
-        
+            
+        # Vérifie s'il existe des transactions PENDING dans les transactions liées à ce compte
+        pending_transactions = [
+            t for t in self.transactions + self.incoming_transactions
+            if t.status == TransactionStatus.PENDING
+        ]
+        if pending_transactions:
+            raise ValueError("Impossible de clôturer le compte : des transactions sont encore en cours.")
+
         # Transfert du solde vers le parent si compte secondaire
         if self.balance > 0 and self.parent_account:
             self.transfer_to(self.parent_account, self.balance)
