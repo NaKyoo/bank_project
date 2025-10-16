@@ -313,53 +313,40 @@ class BankService:
 
 
 
-    def get_transaction(self, db_session: Session, transaction_id: int):
+    # ------------------------------
+    # Récupération des infos d'une transaction
+    # ------------------------------
+    def get_transaction_detail(self, session: Session, transaction_id: int, user_account_number: str):
         """
-        Récupère les informations complètes d'une transaction.
+        Récupère les détails d'une transaction si l'utilisateur est impliqué
+        (soit comme source, soit comme destination).
 
         Args:
-            db_session (Session): session SQLModel active
-            transaction_id (int): identifiant de la transaction
+            session (Session): session SQLModel active
+            transaction_id (int): ID de la transaction
+            user_account_number (str): numéro du compte de l'utilisateur
 
         Returns:
             dict: détails de la transaction
+
+        Raises:
+            HTTPException: si la transaction n'existe pas ou que l'utilisateur n'est pas impliqué
         """
+        transaction = session.get(Transaction, transaction_id)
+        if not transaction:
+            raise HTTPException(404, f"Transaction {transaction_id} introuvable")
 
-        from sqlalchemy.orm import selectinload
-        from sqlmodel import select
+        if user_account_number not in [transaction.source_account_number, transaction.destination_account_number]:
+            raise HTTPException(403, "Vous n'êtes pas autorisé à consulter cette transaction")
 
-        # Requête pour récupérer la transaction avec les comptes liés
-        statement = (
-            select(Transaction)
-            .where(Transaction.id == transaction_id)
-            .where(Transaction.status == TransactionStatus.COMPLETED)
-            .options(
-                selectinload(Transaction.source_account),
-                selectinload(Transaction.destination_account)
-            )
-        )
-
-        transaction_record = db_session.exec(statement).first()
-
-        if not transaction_record:
-            raise HTTPException(404, f"Transaction {transaction_id} introuvable ou non complétée")
-
-        # Structure de retour claire et explicite
         return {
-            "transaction_id": transaction_record.id,
-            "transaction_type": transaction_record.transaction_type,
-            "transaction_amount": transaction_record.amount,
-            "transaction_date": transaction_record.date,
-            "source_account": {
-                "account_number": transaction_record.source_account_number,
-                "balance": transaction_record.source_account.balance
-                if transaction_record.source_account else None
-            },
-            "destination_account": {
-                "account_number": transaction_record.destination_account_number,
-                "balance": transaction_record.destination_account.balance
-                if transaction_record.destination_account else None
-            }
+            "transaction_id": transaction.id,
+            "transaction_type": transaction.transaction_type,
+            "amount": transaction.amount,
+            "date": transaction.date,
+            "source_account_number": transaction.source_account_number,
+            "destination_account_number": transaction.destination_account_number,
+            "status": transaction.status
         }
 
 

@@ -206,26 +206,24 @@ def archive_account(
     return result
 
 
-# ------------------------------
-# Obtenir le détail d'une transaction
-# ------------------------------
-@router.get("/transactions/{transaction_id}")
+@router.get("/transactions/{user_account_number}/{transaction_id}")
 def get_transaction_detail(
+    user_account_number: str = Path(..., description="Numéro du compte de l'utilisateur impliqué"),
     transaction_id: int = Path(..., description="ID de la transaction à consulter"),
     session: Session = Depends(get_session)
 ):
     """
     Récupère les détails d'une transaction par son ID.
-    Vérifie que la transaction existe et est complétée.
+    Vérifie que la transaction existe et que l'utilisateur est impliqué.
     """
 
-    # Appel du service bancaire pour récupérer la transaction
-    transaction_data = bank_service.get_transaction(
-        db_session=session,
-        transaction_id=transaction_id
+    transaction_details = bank_service.get_transaction_detail(
+        session=session,
+        transaction_id=transaction_id,
+        user_account_number=user_account_number
     )
 
-    return transaction_data
+    return transaction_details
 
 
 @router.get("/users/{user_id}/full_info")
