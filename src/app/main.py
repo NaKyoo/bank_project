@@ -7,6 +7,8 @@ from app.controllers import bank_controller
 from app.models.account import BankAccount
 from app.models.user import User
 
+from passlib.context import CryptContext
+
 engine = create_engine("sqlite:///bank.db")
 
 # ------------------------------
@@ -27,9 +29,15 @@ async def lifespan(app: FastAPI):
     # Ouverture d’une session temporaire pour insérer des comptes de démonstration
     with Session(engine) as session:
         
-        if not session.exec(select(User).where(User.username == "Eric")).first():    
+        pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+        if not session.exec(select(User).where(User.email == "Eric123@gmail.com")).first(): 
+            
+            hashed_password = pwd_context.hash("Eric123!")
+
             user = User(
-                    username="Eric",
+                    email="Eric123@gmail.com",
+                    hashed_password=hashed_password,
                     is_active=True
                 )
             session.add(user)

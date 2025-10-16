@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException, Path, Depends        
 from decimal import Decimal                         
 from fastapi.params import Body                     
-from sqlmodel import Session                        
+from sqlmodel import Session, select                        
 
 from app.models.account import BankAccount, Transaction, TransactionStatus
 from app.models.transfer import TransferRequest, Transfer  
-from app.models.user import User
+from app.models.user import User, UserRegisterRequest, UserRegisterResponse
 from app.services.bank_service import bank_service          
 from app.db import get_session                              
 
@@ -225,8 +225,44 @@ def get_transaction_detail(
 
     return transaction_details
 
+# ============================================================
+# Récupérer les informations complètes d’un utilisateur
+# ============================================================
 
 @router.get("/users/{user_id}/full_info")
 def get_user_info(user_id: int = Path(..., description="ID de l'utilisateur"),
                   session: Session = Depends(get_session)):
     return bank_service.get_user_full_info(session, user_id)
+
+# ============================================================
+# ============================================================
+
+@router.post("/users/register", response_model=UserRegisterResponse)
+def register_user(payload: UserRegisterRequest,session: Session = Depends(get_session)):
+    """
+    Enregistre un nouvel utilisateur avec un compte bancaire principal.
+    - Hashage sécurisé du mot de passe
+    - Création automatique d'un compte bancaire principal
+    - Validation des données d'entrée
+    """
+    
+    # Vérifie si le nom d'utilisateur est déjà pris
+    existing_user = session.exec(select(User).where(User.email == payload.email)).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Nom d'utilisateur déjà pris")
+
+    # Crée l'utilisateur et son compte bancaire principal
+    new_user = User.register(email=payload.email, password=payload.email)  # type: ignore
+
+    # Ajoute l'utilisateur et son compte à la session et commit en base
+    session.add(new_user)
+    session.commit()
+    session.refresh(new_user)
+
+
+    return UserRegisterResponse(
+        id=new_user.id,
+        email=new_user.email,
+        primary_account_number = new_user.bank_accounts[0].account_number
+
+    )
