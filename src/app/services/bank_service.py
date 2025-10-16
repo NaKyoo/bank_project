@@ -208,6 +208,10 @@ class BankService:
         - Vérifie que le solde initial est >= 0
         - Vérifie que le nombre total de comptes ne dépasse pas 5"""
         
+        ##Vérifie que le numéro de compte est fourni
+        if not account_number or account_number.strip() == "":
+            raise HTTPException(400, "Le numéro du compte est obligatoire.")
+        
         # Vérifie si le solde de base est négatif
         if initial_balance < 0:
             raise HTTPException(400, "Le solde initial ne peut pas être négatif.")
