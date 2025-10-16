@@ -1,9 +1,8 @@
-from contextlib import asynccontextmanager         
-from fastapi import FastAPI                        
-import uvicorn                                     
-from sqlmodel import Session, select, SQLModel, create_engine  
-from app.controllers import bank_controller        
-from app.models.account import BankAccount         
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from sqlmodel import Session, select, SQLModel, create_engine
+from app.controllers import bank_controller
+from app.models.account import BankAccount
 
 engine = create_engine("sqlite:///bank.db")
 
@@ -26,14 +25,29 @@ async def lifespan(app: FastAPI):
     with Session(engine) as session:
         # Si aucun compte n’existe encore dans la base...
         if not session.exec(select(BankAccount)).first():
-            # ... alors on crée quelques comptes bancaires de base
-            comptes = [
-                BankAccount(account_number="COMPTE_EPARGNE", balance=150),
-                BankAccount(account_number="COMPTE_COURANT", balance=150),
-                BankAccount(account_number="COMPTE_JOINT", balance=150),
+            # Création des comptes bancaires de base
+            compte_courant = BankAccount(
+                account_number="COMPTE_COURANT",
+                balance=150,
+                parent_account_number=None  # Compte principal
+            )
+
+            comptes_secondaires = [
+                BankAccount(
+                    account_number="COMPTE_EPARGNE",
+                    balance=150,
+                    parent_account_number="COMPTE_COURANT"  # Rattaché au compte courant
+                ),
+                BankAccount(
+                    account_number="COMPTE_JOINT",
+                    balance=150,
+                    parent_account_number="COMPTE_COURANT"  # Rattaché au compte courant
+                ),
             ]
-            # On ajoute les comptes dans la session et on enregistre en base
-            session.add_all(comptes)
+
+            # On ajoute tous les comptes dans la session
+            session.add(compte_courant)
+            session.add_all(comptes_secondaires)
             session.commit()
 
     # Le code suivant (après yield) s’exécutera à la fermeture de l’application.
@@ -54,4 +68,3 @@ app = FastAPI(
 
 # Inclusion du routeur principal (défini dans bank_controller)
 app.include_router(bank_controller.router)
-

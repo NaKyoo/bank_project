@@ -1,11 +1,28 @@
-from datetime import datetime           
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List, Optional  
 
+from enum import Enum
 from sqlmodel import Field, Relationship, SQLModel
+
+
+
+class TransactionStatus(str, Enum):
+    """
+    Enumération représentant les différents états possibles d'une transaction.
+    
+    Attributes:
+        PENDING (str): La transaction a été créée mais n'a pas encore été exécutée.
+        COMPLETED (str): La transaction a été exécutée avec succès.
+        CANCELED (str): La transaction a été annulée et n'a pas été effectuée.
+    """
+    
+    PENDING = "pending"
+    COMPLETED = "completed"
+    CANCELED = "canceled"
 from app.models.user import User
 
-
+    
 # ------------------------------
 # Classe représentant une Transaction
 # ------------------------------
@@ -27,6 +44,10 @@ class Transaction(SQLModel, table=True):
 
     # Date et heure de la transaction (valeur par défaut : maintenant)
     date: datetime = Field(default_factory=datetime.now)
+
+    # Statut actuel de la transaction
+    status: TransactionStatus = Field(default=TransactionStatus.PENDING)
+
 
     # Relation vers le compte source (le compte qui envoie l'argent)
     source_account: Optional["BankAccount"] = Relationship(
@@ -53,6 +74,29 @@ class BankAccount(SQLModel, table=True):
 
     creation_date: datetime = Field(default_factory=datetime.now)
 
+    
+    
+    is_active: bool = Field(default=True)
+    closed_at: Optional[datetime] = Field(default=None)
+    
+
+    # ==============================
+    # Lien parent-enfant
+    # ==============================
+    
+    parent_account_number: Optional[str] = Field(default=None, foreign_key="bankaccount.account_number")
+    
+    # Le parent (compte principal)
+    parent_account: Optional["BankAccount"] = Relationship(
+        back_populates="child_accounts",
+        sa_relationship_kwargs={"remote_side": "[BankAccount.account_number]"}
+    )
+
+    # Les enfants (comptes secondaires)
+    child_accounts: List["BankAccount"] = Relationship(
+        back_populates="parent_account"
+    )
+    
     # ------------------------------
     # Relations avec d'autres tables
     # ------------------------------
@@ -76,17 +120,91 @@ class BankAccount(SQLModel, table=True):
     )
 
     user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
+    # relation vers User
+    user: Optional["User"] = Relationship(back_populates="accounts")
 
 
     # ------------------------------
     # Méthodes métier (logique applicative)
     # ------------------------------
+    
+    def open_account(self, parent_account: Optional["BankAccount"] = None, initial_balance: Decimal = 0):
+        """Ouvre un nouveau compte secondaire :
+        - Initialise le solde (>=0)
+        - Associe le compte principal comme parent obligatoire
+        - Vérifie que le compte n'est pas déjà actif"""
+           
+        if self.is_active:
+            raise ValueError("Le compte est déjà actif.")
+        
+        if initial_balance < 0:
+            raise ValueError("Le solde initial ne peut pas être négatif.")
+        
+        if parent_account is None or parent_account.parent_account_number is not None:
+            # Si le parent est absent ou n'est pas un compte principal
+            raise ValueError("Le compte parent doit être un compte principal existant.")
+
+        self.is_active = True
+        self.closed_at = None
+        self.balance = initial_balance
+        self.parent_account_number = parent_account.account_number
+    
+    
+    def close_account(self):
+        """Clôture le compte et transfère le solde au parent si nécessaire"""
+        if not self.is_active:
+            raise ValueError("Le compte est déjà clôturé.")
+        
+        # Interdire la clôture d'un parent s'il a des enfants actifs
+        if self.child_accounts:
+            active_children = [c for c in self.child_accounts if c.is_active]
+            if active_children:
+                raise ValueError("Impossible de clôturer un compte parent tant que des comptes secondaires sont actifs.")
+            
+        # Vérifie s'il existe des transactions PENDING dans les transactions liées à ce compte
+        pending_transactions = [
+            t for t in self.transactions + self.incoming_transactions
+            if t.status == TransactionStatus.PENDING
+        ]
+        if pending_transactions:
+            raise ValueError("Impossible de clôturer le compte : des transactions sont encore en cours.")
+
+        # Transfert du solde vers le parent si compte secondaire
+        if self.balance > 0 and self.parent_account:
+            self.transfer_to(self.parent_account, self.balance)
+
+        self.is_active = False
+        self.closed_at = datetime.now(timezone.utc)
+
+
+    def archive(self) -> "ArchivedBankAccount":
+        """
+        Crée une archive complète du compte clôturé,
+        incluant la référence au compte parent (si secondaire).
+        """
+        if self.is_active:
+            raise ValueError("Impossible d’archiver un compte encore actif.")
+        if not self.closed_at:
+            raise ValueError("Le compte doit être clôturé avant archivage.")
+
+        return ArchivedBankAccount(
+            original_account_number=self.account_number,
+            balance=self.balance,
+            closed_at=self.closed_at,
+            parent_account_number=self.parent_account_number,
+            archived_at=datetime.now(timezone.utc)
+        )
+
 
     # Effectuer un dépôt sur le compte
     def deposit(self, amount: Decimal) -> Transaction:
         # Vérifie que le montant est positif
         if amount <= 0:
             raise ValueError("Le montant du dépôt doit être positif")
+        
+        # Vérifie que le montant ne dépasse pas 2000 €
+        if amount > Decimal('2000'):
+            raise ValueError("Le dépôt ne peut pas dépasser 2000 € par opération")
 
         # Ajoute le montant au solde actuel
         self.balance += amount
@@ -95,36 +213,85 @@ class BankAccount(SQLModel, table=True):
         return Transaction(
             transaction_type="deposit",
             amount=amount,
-            destination_account_number=self.account_number
+            destination_account_number=self.account_number,
+            status=TransactionStatus.COMPLETED 
         )
 
+    # ------------------------------
     # Effectuer un transfert vers un autre compte
+    # ------------------------------
     def transfer_to(self, target: "BankAccount", amount: Decimal) -> Transaction:
-        # Vérifie que le montant est valide
+        """
+        Crée une transaction de type 'transfer' PENDING vers un autre compte.
+        
+        Args:
+            target (BankAccount): Le compte destinataire.
+            amount (Decimal): Le montant du transfert.
+        
+        Returns:
+            Transaction: La transaction créée avec status PENDING.
+        
+        Raises:
+            ValueError: Si le montant est négatif, si le compte cible est le même,
+                        ou si le solde est insuffisant.
+        """
+        
         if amount <= 0:
             raise ValueError("Le montant du transfert doit être positif")
-
-        # Vérifie que le solde est suffisant
+        if self.account_number == target.account_number:
+            raise ValueError("Impossible de transférer vers soi-même")
         if self.balance < amount:
             raise ValueError("Solde insuffisant")
 
-        # Empêche de transférer vers soi-même
-        if self.account_number == target.account_number:
-            raise ValueError("Impossible de transférer vers soi-même")
-
-        # Déduit le montant du solde du compte source
-        self.balance -= amount
-
-        # Ajoute le montant au solde du compte destinataire
-        target.balance += amount
-
-        # Crée et retourne un objet Transaction représentant le transfert
-        return Transaction(
+        # Crée la transaction PENDING
+        transaction = Transaction(
             transaction_type="transfer",
             amount=amount,
             source_account_number=self.account_number,
-            destination_account_number=target.account_number
+            destination_account_number=target.account_number,
+            status=TransactionStatus.PENDING
         )
+        return transaction
+
+    # ------------------------------
+    # Compléter un transfert
+    # ------------------------------
+    def complete_transfer(self, target: "BankAccount", transaction: Transaction):
+        """
+        Applique un transfert existant : débite le compte source et crédite le compte destinataire.
+
+        Args:
+            target (BankAccount): Le compte destinataire.
+            transaction (Transaction): La transaction à compléter.
+
+        Raises:
+            ValueError: Si le solde est insuffisant (non géré ici mais peut être ajouté).
+        """
+        self.balance -= transaction.amount
+        target.balance += transaction.amount
+        transaction.status = TransactionStatus.COMPLETED
+        
+    # ------------------------------
+    # Annuler un transfert
+    # ------------------------------
+    def cancel_transfer(self, transaction: Transaction):
+        """
+        Annule une transaction PENDING. Logique métier pure (ne touche pas à la base de données).
+
+        Args:
+            transaction (Transaction): La transaction à annuler.
+
+        Returns:
+            Transaction: La transaction avec status mis à CANCELED.
+
+        Raises:
+            ValueError: Si la transaction n'est pas PENDING.
+        """
+        
+        if transaction.status != TransactionStatus.PENDING:
+            raise ValueError("Transaction déjà complétée ou annulée")
+        transaction.status = TransactionStatus.CANCELED
+        return transaction
 
     # Ajouter un compte bénéficiaire (autre compte autorisé à recevoir des transferts)
     def add_beneficiary(self, beneficiary_account: "BankAccount") -> "Beneficiary":  # type: ignore
@@ -150,11 +317,29 @@ class BankAccount(SQLModel, table=True):
 
         # Retourne le nouvel objet créé
         return new_beneficiary
+        
+    
+# ===============================
+# Table d’archive des comptes
+# ===============================
+class ArchivedBankAccount(SQLModel, table=True):
+    """Table séparée pour les comptes archivés."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    original_account_number: str = Field(index=True)
+    balance: Decimal
+    closed_at: datetime
+    parent_account_number: Optional[str] = Field(default=None) 
+    archived_at: datetime = Field(default_factory=datetime.now(timezone.utc)
+)
  
 
     # Obtenir l'historique des transactions triées par date décroissante
     def get_transaction_history(self) -> list:
-        all_transactions = self.transactions + self.incoming_transactions
+        # Ne retourner que les transactions complétées (status == "completed")
+        all_transactions = [
+            t for t in (self.transactions + self.incoming_transactions)
+            if getattr(t, "status", None) == "completed"
+        ]
         sorted_transactions = sorted(all_transactions, key=lambda t: t.date, reverse=True)
         return [
             {

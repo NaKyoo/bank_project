@@ -32,3 +32,6 @@ secrets.json
 # pytest
 .pytest_cache/
 .coverage
+
+
+.MERGE_MSG.swp

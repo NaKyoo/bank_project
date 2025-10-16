@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Path, Depends        
+from fastapi import APIRouter, HTTPException, Path, Depends        
 from decimal import Decimal                         
 from fastapi.params import Body                     
 from sqlmodel import Session                        
 
+from app.models.account import BankAccount, Transaction, TransactionStatus
 from app.models.transfer import TransferRequest, Transfer  
 from app.services.bank_service import bank_service          
 from app.db import get_session                              
@@ -48,6 +49,36 @@ def make_transfer(request: TransferRequest, session: Session = Depends(get_sessi
         amount=request.amount,
         status="completed"
     )
+
+
+@router.post("/transfer/{transaction_id}/cancel")
+def cancel_transaction(transaction_id: int, session: Session = Depends(get_session)):
+    # Récupère la transaction depuis la base via son ID
+    transaction = session.get(Transaction, transaction_id)
+    if not transaction:
+        raise HTTPException(404, "Transaction non trouvée")
+
+    # Vérifie que la transaction est encore PENDING avant de l'annuler
+    if transaction.status != TransactionStatus.PENDING:
+        raise HTTPException(400, "Impossible d'annuler une transaction déjà complétée ou annulée")
+
+    # Récupère le compte source pour appliquer la logique métier d'annulation
+    source_account = session.get(BankAccount, transaction.source_account_number)
+    source_account.cancel_transfer(transaction)  # change le statut
+
+
+    session.add(transaction)
+    session.commit()
+    session.refresh(transaction)
+
+    # Si on voulait supprimer la transaction de la base plutôt que de la marquer comme CANCELED
+    # session.delete(transaction)
+    # session.commit()
+
+    return {
+        "message": f"Transaction {transaction_id} annulée",
+        "status": transaction.status
+    }
 
 
 # ------------------------------
@@ -119,3 +150,67 @@ def get_account_transactions(account_number: str, session: Session = Depends(get
 def get_user_accounts(user_id: int, session: Session = Depends(get_session)):
     
     return bank_service.get_user_accounts(session, user_id)
+# ============================================================
+# Ouvrir un compte
+# ============================================================
+@router.post("/accounts/open")
+def open_account(
+    account_number: str = Body(..., embed=True, description="Numéro du nouveau compte secondaire"),
+    parent_account_number: str = Body(..., embed=True, description="Numéro du compte parent"),
+    initial_balance: Decimal = Body(0, embed=True, description="Solde initial du compte"),
+    session: Session = Depends(get_session)
+):
+    """Crée un nouveau compte secondaire rattaché à un compte parent existant.
+    - Le parent doit être un compte principal actif
+    - Solde initial >= 0
+    - Nombre total de comptes maximum : 5"""
+    
+    account = bank_service.open_account(session, account_number, parent_account_number, initial_balance)
+    return {
+            "message": f"Le compte {account.account_number} a été créé avec succès.",
+            "account_number": account.account_number,
+            "parent_account_number": account.parent_account_number,
+            "current_balance": account.balance,
+            "is_active": account.is_active
+        }
+
+# ============================================================
+# Clôturer un compte
+# ============================================================
+@router.post("/accounts/{account_number}/close")
+def close_account(
+    account_number: str = Path(..., description="Numéro du compte à clôturer"),
+    session: Session = Depends(get_session)
+):
+    """
+    Clôture un compte bancaire :
+    - Le rend inactif (`is_active=False`)
+    - Transfère automatiquement le solde vers le compte parent si c'est un compte secondaire
+    - Vérifie qu'un compte parent avec enfants actifs ne peut pas être clôturé
+    - Enregistre la date de clôture (`closed_at`)
+    """
+    account = bank_service.close_account(session, account_number)
+    return {
+        "message": f"Le compte {account.account_number} a été clôturé avec succès.",
+        "closed_at": account.closed_at,
+        "parent_account_number": account.parent_account_number
+    }
+
+
+# ============================================================
+# Archiver un compte clôturé
+# ============================================================
+@router.post("/accounts/{account_number}/archive")
+def archive_account(
+    account_number: str = Path(..., description="Numéro du compte à archiver"),
+    reason: str = Body(default="Clôture du compte", embed=True),
+    session: Session = Depends(get_session)
+):
+    """
+    Archive un compte clôturé :
+    - Crée une entrée dans la table 'archived_bank_accounts'
+    - Conserve le lien parent-enfant
+    - Supprime le compte original
+    """
+    result = bank_service.archive_account(session, account_number, reason)
+    return result
