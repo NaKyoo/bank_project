@@ -1,4 +1,5 @@
-from datetime import time
+import time
+from datetime import datetime, timezone
 import threading
 from fastapi import APIRouter, HTTPException, Path, Depends       
 from decimal import Decimal                         
@@ -8,7 +9,7 @@ from sqlmodel import Session
 
 from app.models.transfer import TransferRequest, Transfer  
 from app.services.bank_service import bank_service          
-from app.db import get_session   
+from app.db import get_session, engine   
 from app.services.transfer_manager import transfers_in_progress, transfer_counter                           
 
 
@@ -29,13 +30,32 @@ async def read_root():
 # ------------------------------
 def transfer_delay(transfer_id: int):
     """Fonction qui attend 5 secondes puis finalise le transfert s’il n’=a pas été annulé."""
-    threading.Event().wait(5)
+    time.sleep(5)
+
     transfer = transfers_in_progress.get(transfer_id)
-    
-    if transfer and transfer.status == "pending":
-        transfer.status = "completed"
-        print(f"Transfert #{transfer_id} finalisé automatiquement.")
-        del transfers_in_progress[transfer_id]
+    if not transfer:
+        return  
+
+    with Session(engine) as session:
+        source = bank_service.get_account(session, transfer.from_account)
+        dest = bank_service.get_account(session, transfer.to_account)
+
+        if not source or not dest:
+            transfer.status = "failed"
+            del transfers_in_progress[transfer_id]
+            return
+
+        # Applique le transfert
+        source.balance -= transfer.amount
+        dest.balance += transfer.amount
+
+        session.add(source)
+        session.add(dest)
+        session.commit()
+
+    transfer.status = "completed"
+    print(f"Transfert #{transfer_id} finalisé automatiquement.")
+    del transfers_in_progress[transfer_id]
 
 # ------------------------------
 # Effectuer un transfert entre deux comptes

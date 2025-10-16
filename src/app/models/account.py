@@ -177,19 +177,12 @@ class BankAccount(SQLModel, table=True):
         if self.account_number == target.account_number:
             raise ValueError("Impossible de transférer vers soi-même")
 
-        # Déduit le montant du solde du compte source
-        self.balance -= amount
-
-        # Ajoute le montant au solde du compte destinataire
-        target.balance += amount
-
-        # Crée et retourne un objet Transaction représentant le transfert
         return Transaction(
-            transaction_type="transfer",
-            amount=amount,
-            source_account_number=self.account_number,
-            destination_account_number=target.account_number
-        )
+        transaction_type="transfer",
+        amount=amount,
+        source_account_number=self.account_number,
+        destination_account_number=target.account_number,
+    )
 
     # Ajouter un compte bénéficiaire (autre compte autorisé à recevoir des transferts)
     def add_beneficiary(self, beneficiary_account: "BankAccount") -> "Beneficiary":  # type: ignore
