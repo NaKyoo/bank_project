@@ -119,6 +119,22 @@ class BankAccount(SQLModel, table=True):
     # Méthodes métier (logique applicative)
     # ------------------------------
     
+    def open_account(self, parent_account: Optional["BankAccount"] = None, initial_balance: Decimal = 0):
+        """Réactive ou crée un compte secondaire :
+        - Le rend actif
+        - Initialise le solde
+        - Associe un parent si fourni"""
+        if self.is_active:
+            raise ValueError("Le compte est déjà actif.")
+
+        self.is_active = True
+        self.closed_at = None
+        self.balance = initial_balance
+
+        if parent_account:
+            self.parent_account_number = parent_account.account_number
+    
+    
     def close_account(self):
         """Clôture le compte et transfère le solde au parent si nécessaire"""
         if not self.is_active:
@@ -136,6 +152,7 @@ class BankAccount(SQLModel, table=True):
 
         self.is_active = False
         self.closed_at = datetime.now(timezone.utc)
+
 
     def archive(self) -> "ArchivedBankAccount":
         """
