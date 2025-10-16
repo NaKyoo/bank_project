@@ -162,8 +162,9 @@ class BankService:
         transactions = session.exec(
             select(Transaction)
             .where(
-                (Transaction.source_account_number == account_number) |  # Transactions sortantes
-                (Transaction.destination_account_number == account_number)  # Transactions entrantes
+                ((Transaction.source_account_number == account_number) |  # Transactions sortantes
+                (Transaction.destination_account_number == account_number)) &  # Transactions entrantes
+                (Transaction.status == TransactionStatus.COMPLETED) # Filtre par statut
             )
         ).all()
 
@@ -283,7 +284,6 @@ class BankService:
         archived = account.archive()
 
         session.add(archived)
-        session.delete(account)
         session.commit()
 
         return {

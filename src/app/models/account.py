@@ -190,7 +190,8 @@ class BankAccount(SQLModel, table=True):
         return Transaction(
             transaction_type="deposit",
             amount=amount,
-            destination_account_number=self.account_number
+            destination_account_number=self.account_number,
+            status=TransactionStatus.COMPLETED 
         )
 
     # ------------------------------
