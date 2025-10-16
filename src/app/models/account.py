@@ -120,19 +120,25 @@ class BankAccount(SQLModel, table=True):
     # ------------------------------
     
     def open_account(self, parent_account: Optional["BankAccount"] = None, initial_balance: Decimal = 0):
-        """Réactive ou crée un compte secondaire :
-        - Le rend actif
-        - Initialise le solde
-        - Associe un parent si fourni"""
+        """Ouvre un nouveau compte secondaire :
+        - Initialise le solde (>=0)
+        - Associe le compte principal comme parent obligatoire
+        - Vérifie que le compte n'est pas déjà actif"""
+           
         if self.is_active:
             raise ValueError("Le compte est déjà actif.")
+        
+        if initial_balance < 0:
+            raise ValueError("Le solde initial ne peut pas être négatif.")
+        
+        if parent_account is None or parent_account.parent_account_number is not None:
+            # Si le parent est absent ou n'est pas un compte principal
+            raise ValueError("Le compte parent doit être un compte principal existant.")
 
         self.is_active = True
         self.closed_at = None
         self.balance = initial_balance
-
-        if parent_account:
-            self.parent_account_number = parent_account.account_number
+        self.parent_account_number = parent_account.account_number
     
     
     def close_account(self):

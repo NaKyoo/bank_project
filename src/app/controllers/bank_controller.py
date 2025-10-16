@@ -150,17 +150,18 @@ def open_account(
     session: Session = Depends(get_session)
 ):
     """Crée un nouveau compte secondaire rattaché à un compte parent existant.
-    - Vérifie que le compte parent est actif
-    - Initialise le solde
-    - Retourne les informations du nouveau compte"""
+    - Le parent doit être un compte principal actif
+    - Solde initial >= 0
+    - Nombre total de comptes maximum : 5"""
+    
     account = bank_service.open_account(session, account_number, parent_account_number, initial_balance)
     return {
-        "message": f"Le compte {account.account_number} a été créé avec succès.",
-        "account_number": account.account_number,
-        "parent_account_number": account.parent_account_number,
-        "current_balance": account.balance,
-        "is_active": account.is_active
-    }
+            "message": f"Le compte {account.account_number} a été créé avec succès.",
+            "account_number": account.account_number,
+            "parent_account_number": account.parent_account_number,
+            "current_balance": account.balance,
+            "is_active": account.is_active
+        }
 
 # ============================================================
 # Clôturer un compte

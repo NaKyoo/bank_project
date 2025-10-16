@@ -204,8 +204,18 @@ class BankService:
     def open_account(self, session: Session, account_number: str, parent_account_number: str, initial_balance: Decimal = 0) -> BankAccount:
         """Ouvre un nouveau compte secondaire :
         - Vérifie que le compte n’existe pas déjà actif
-        - Vérifie que le parent existe et est actif
-        - Initialise le solde et associe le parent"""
+        - Vérifie que le parent existe et est un compte principal actif
+        - Vérifie que le solde initial est >= 0
+        - Vérifie que le nombre total de comptes ne dépasse pas 5"""
+        
+        # Vérifie si le solde de base est négatif
+        if initial_balance < 0:
+            raise HTTPException(400, "Le solde initial ne peut pas être négatif.")
+        
+        # Vérifie le nombre total de comptes
+        total_accounts = session.exec(select(BankAccount)).all()
+        if len(total_accounts) >= 5:
+            raise HTTPException(400, "Impossible de créer plus de 5 comptes au total.")
         
         # Vérifie que le compte n'existe pas déjà
         existing_account = session.get(BankAccount, account_number)
@@ -214,8 +224,12 @@ class BankService:
 
         # Récupère le compte parent
         parent_account = self.get_account(session, parent_account_number)
+        
+        # Vérifie que le parent est actif et bien un compte principal
         if not parent_account.is_active:
             raise HTTPException(400, f"Le compte parent {parent_account_number} est fermé.")
+        if parent_account.parent_account_number is not None:
+            raise HTTPException(400, "Le compte parent doit être un compte principal.")
 
         # Création d’un nouveau compte
         account = BankAccount(
