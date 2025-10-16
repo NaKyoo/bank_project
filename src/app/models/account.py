@@ -3,7 +3,6 @@ from decimal import Decimal
 from typing import List, Optional  
 
 from sqlmodel import Field, Relationship, SQLModel
-from app.services.transfer_manager import transfers_in_progress
 
 
 # ------------------------------
@@ -99,17 +98,26 @@ class BankAccount(SQLModel, table=True):
     # Méthodes métier (logique applicative)
     # ------------------------------
     
+    def open_account(self, parent_account: Optional["BankAccount"] = None, initial_balance: Decimal = 0):
+        """Réactive ou crée un compte secondaire :
+        - Le rend actif
+        - Initialise le solde
+        - Associe un parent si fourni"""
+        if self.is_active:
+            raise ValueError("Le compte est déjà actif.")
+
+        self.is_active = True
+        self.closed_at = None
+        self.balance = initial_balance
+
+        if parent_account:
+            self.parent_account_number = parent_account.account_number
+    
+    
     def close_account(self):
         """Clôture le compte et transfère le solde au parent si nécessaire"""
         if not self.is_active:
             raise ValueError("Le compte est déjà clôturé.")
-        
-        # Vérifie s'il y a un transfert en cours et empêche la clôture si c'est le cas
-        for t in transfers_in_progress.values():
-            if t.status == "pending" and (
-                t.from_account == self.account_number or t.to_account == self.account_number
-            ):
-                raise ValueError("Impossible de clôturer le compte car un transfert est en cours.")
         
         # Interdire la clôture d'un parent s'il a des enfants actifs
         if self.child_accounts:
@@ -123,6 +131,7 @@ class BankAccount(SQLModel, table=True):
 
         self.is_active = False
         self.closed_at = datetime.now(timezone.utc)
+
 
     def archive(self) -> "ArchivedBankAccount":
         """
@@ -177,12 +186,19 @@ class BankAccount(SQLModel, table=True):
         if self.account_number == target.account_number:
             raise ValueError("Impossible de transférer vers soi-même")
 
+        # Déduit le montant du solde du compte source
+        self.balance -= amount
+
+        # Ajoute le montant au solde du compte destinataire
+        target.balance += amount
+
+        # Crée et retourne un objet Transaction représentant le transfert
         return Transaction(
-        transaction_type="transfer",
-        amount=amount,
-        source_account_number=self.account_number,
-        destination_account_number=target.account_number,
-    )
+            transaction_type="transfer",
+            amount=amount,
+            source_account_number=self.account_number,
+            destination_account_number=target.account_number
+        )
 
     # Ajouter un compte bénéficiaire (autre compte autorisé à recevoir des transferts)
     def add_beneficiary(self, beneficiary_account: "BankAccount") -> "Beneficiary":  # type: ignore

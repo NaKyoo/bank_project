@@ -161,6 +161,37 @@ class BankService:
             .where(Beneficiary.owner_account_number == account_number)
         ).all()
         
+    # ============================================================
+    # Ouverture d’un compte
+    # ============================================================
+    def open_account(self, session: Session, account_number: str, parent_account_number: str, initial_balance: Decimal = 0) -> BankAccount:
+        """Ouvre un nouveau compte secondaire :
+        - Vérifie que le compte n’existe pas déjà actif
+        - Vérifie que le parent existe et est actif
+        - Initialise le solde et associe le parent"""
+        
+        # Vérifie que le compte n'existe pas déjà
+        existing_account = session.get(BankAccount, account_number)
+        if existing_account and existing_account.is_active:
+            raise HTTPException(400, f"Le compte {account_number} existe déjà et est actif.")
+
+        # Récupère le compte parent
+        parent_account = self.get_account(session, parent_account_number)
+        if not parent_account.is_active:
+            raise HTTPException(400, f"Le compte parent {parent_account_number} est fermé.")
+
+        # Création d’un nouveau compte
+        account = BankAccount(
+            account_number=account_number,
+            balance=initial_balance,
+            is_active=True,
+            parent_account_number=parent_account.account_number
+        )
+
+        session.add(account)
+        session.commit()
+        session.refresh(account)
+        return account
     
     # ============================================================
     # Clôture d’un compte

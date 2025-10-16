@@ -45,17 +45,17 @@ def transfer_delay(transfer_id: int):
             del transfers_in_progress[transfer_id]
             return
 
-        # Applique le transfert
         source.balance -= transfer.amount
         dest.balance += transfer.amount
 
         session.add(source)
         session.add(dest)
+        
         session.commit()
 
     transfer.status = "completed"
     print(f"Transfert #{transfer_id} finalisé automatiquement.")
-    del transfers_in_progress[transfer_id]
+    
 
 # ------------------------------
 # Effectuer un transfert entre deux comptes
@@ -175,6 +175,29 @@ def list_beneficiaries(owner_account_number: str, session: Session = Depends(get
     beneficiaries = bank_service.get_beneficiaries(session, owner_account_number)
     return [{"beneficiary_account_number": b} for b in beneficiaries]
 
+
+# ============================================================
+# Ouvrir un compte
+# ============================================================
+@router.post("/accounts/open")
+def open_account(
+    account_number: str = Body(..., embed=True, description="Numéro du nouveau compte secondaire"),
+    parent_account_number: str = Body(..., embed=True, description="Numéro du compte parent"),
+    initial_balance: Decimal = Body(0, embed=True, description="Solde initial du compte"),
+    session: Session = Depends(get_session)
+):
+    """Crée un nouveau compte secondaire rattaché à un compte parent existant.
+    - Vérifie que le compte parent est actif
+    - Initialise le solde
+    - Retourne les informations du nouveau compte"""
+    account = bank_service.open_account(session, account_number, parent_account_number, initial_balance)
+    return {
+        "message": f"Le compte {account.account_number} a été créé avec succès.",
+        "account_number": account.account_number,
+        "parent_account_number": account.parent_account_number,
+        "current_balance": account.balance,
+        "is_active": account.is_active
+    }
 
 # ============================================================
 # Clôturer un compte
