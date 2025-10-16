@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import List, Optional  
 
 from enum import Enum
+from pydantic import BaseModel
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -21,7 +22,6 @@ class TransactionStatus(str, Enum):
     COMPLETED = "completed"
     CANCELED = "canceled"
 
-    
 # ------------------------------
 # Classe représentant une Transaction
 # ------------------------------
@@ -74,6 +74,8 @@ class BankAccount(SQLModel, table=True):
     
     is_active: bool = Field(default=True)
     closed_at: Optional[datetime] = Field(default=None)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
     
     owner_id: Optional[int] = Field(default=None, foreign_key="user.id")
     owner: Optional["User"] = Relationship( # type: ignore
