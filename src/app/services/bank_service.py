@@ -7,6 +7,7 @@ from decimal import Decimal
 from app.db import engine
 from app.models.account import BankAccount, Transaction, TransactionStatus
 from app.models.beneficiary import Beneficiary
+from app.models.user import User
 
 
 # ------------------------------
@@ -312,46 +313,92 @@ class BankService:
 
 
 
-def get_transaction(session: Session, transaction_id: int, user_account_number: str):
-    from sqlalchemy.orm import selectinload
-    from sqlmodel import select
-    from app.models.account import TransactionStatus
+    def get_transaction(self, db_session: Session, transaction_id: int):
+        """
+        Récupère les informations complètes d'une transaction.
 
-    # Requête pour récupérer la transaction avec les comptes liés
-    statement = (
-        select(Transaction)
-        .where(Transaction.id == transaction_id)
-        .where(
-            ((Transaction.source_account_number == user_account_number) |
-             (Transaction.destination_account_number == user_account_number)) &
-            (Transaction.status == TransactionStatus.COMPLETED)
+        Args:
+            db_session (Session): session SQLModel active
+            transaction_id (int): identifiant de la transaction
+
+        Returns:
+            dict: détails de la transaction
+        """
+
+        from sqlalchemy.orm import selectinload
+        from sqlmodel import select
+
+        # Requête pour récupérer la transaction avec les comptes liés
+        statement = (
+            select(Transaction)
+            .where(Transaction.id == transaction_id)
+            .where(Transaction.status == TransactionStatus.COMPLETED)
+            .options(
+                selectinload(Transaction.source_account),
+                selectinload(Transaction.destination_account)
+            )
         )
-        .options(
-            selectinload(Transaction.source_account),
-            selectinload(Transaction.destination_account)
-        )
-    )
 
-    transaction = session.exec(statement).first()
+        transaction_record = db_session.exec(statement).first()
 
-    if not transaction:
-        raise HTTPException(404, "Transaction introuvable, non autorisée ou pas encore complétée")
+        if not transaction_record:
+            raise HTTPException(404, f"Transaction {transaction_id} introuvable ou non complétée")
 
-    return {
-        "transaction_id": transaction.id,
-        "transaction_type": transaction.transaction_type,
-        "amount": transaction.amount,
-        "date": transaction.date,
-        "source_account": {
-            "account_number": transaction.source_account_number,
-            "balance": transaction.source_account.balance if transaction.source_account else None
-        },
-        "destination_account": {
-            "account_number": transaction.destination_account_number,
-            "balance": transaction.destination_account.balance if transaction.destination_account else None
+        # Structure de retour claire et explicite
+        return {
+            "transaction_id": transaction_record.id,
+            "transaction_type": transaction_record.transaction_type,
+            "transaction_amount": transaction_record.amount,
+            "transaction_date": transaction_record.date,
+            "source_account": {
+                "account_number": transaction_record.source_account_number,
+                "balance": transaction_record.source_account.balance
+                if transaction_record.source_account else None
+            },
+            "destination_account": {
+                "account_number": transaction_record.destination_account_number,
+                "balance": transaction_record.destination_account.balance
+                if transaction_record.destination_account else None
+            }
         }
-    }
 
+
+    def get_user_full_info(self, session: Session, user_id: int):
+            """
+            Récupère toutes les informations d’un utilisateur ainsi que ses comptes associés.
+
+            Args:
+                session (Session): session SQLModel active
+                user_id (int): ID de l'utilisateur
+
+            Returns:
+                dict: informations utilisateur et comptes
+            """
+            user_record = session.get(User, user_id)
+            if not user_record:
+                raise HTTPException(404, f"Utilisateur avec l'ID {user_id} introuvable")
+
+            # Vérifie si l'utilisateur est actif
+            if not user_record.is_active:
+                raise HTTPException(403, f"L'utilisateur {user_record.username} est inactif")
+
+            # Liste des comptes de l'utilisateur
+            comptes_info = [
+                {
+                    "account_number": compte.account_number,
+                    "current_balance": compte.balance,
+                    "is_active": compte.is_active,
+                    "parent_account_number": compte.parent_account_number
+                }
+                for compte in user_record.bank_accounts
+            ]
+
+            return {
+                "user_id": user_record.id,
+                "username": user_record.username,
+                "is_active": user_record.is_active,
+                "accounts": comptes_info
+            }
 
 
 # ------------------------------

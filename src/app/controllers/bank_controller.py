@@ -206,34 +206,29 @@ def archive_account(
     return result
 
 
-@router.get("/users/{user_id}/accounts")
-def get_all_user_accounts(
-    user_id: int = Path(..., description="ID de l'utilisateur dont on souhaite récupérer les comptes"),
+# ------------------------------
+# Obtenir le détail d'une transaction
+# ------------------------------
+@router.get("/transactions/{transaction_id}")
+def get_transaction_detail(
+    transaction_id: int = Path(..., description="ID de la transaction à consulter"),
     session: Session = Depends(get_session)
 ):
     """
-    Récupère tous les comptes bancaires liés à un utilisateur.
-    Retourne une liste de comptes avec leurs informations principales.
+    Récupère les détails d'une transaction par son ID.
+    Vérifie que la transaction existe et est complétée.
     """
 
-    # Récupération de l'utilisateur
-    user_record = session.get(User, user_id)
-    if not user_record:
-        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    # Appel du service bancaire pour récupérer la transaction
+    transaction_data = bank_service.get_transaction(
+        db_session=session,
+        transaction_id=transaction_id
+    )
 
-    # Construction de la liste des comptes de l'utilisateur
-    accounts_info = [
-        {
-            "account_number": account.account_number,
-            "current_balance": account.balance,
-            "is_active": account.is_active,
-            "parent_account_number": account.parent_account_number
-        }
-        for account in user_record.bank_accounts
-    ]
+    return transaction_data
 
-    return {
-        "user_id": user_record.id,
-        "username": user_record.username,
-        "accounts": accounts_info
-    }
+
+@router.get("/users/{user_id}/full_info")
+def get_user_info(user_id: int = Path(..., description="ID de l'utilisateur"),
+                  session: Session = Depends(get_session)):
+    return bank_service.get_user_full_info(session, user_id)
