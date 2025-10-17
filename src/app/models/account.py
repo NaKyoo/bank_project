@@ -79,6 +79,7 @@ class BankAccount(SQLModel, table=True):
     is_active: bool = Field(default=True)
     closed_at: Optional[datetime] = Field(default=None)
     
+    # user association is represented by `user_id` below
 
     # ==============================
     # Lien parent-enfant
@@ -104,7 +105,7 @@ class BankAccount(SQLModel, table=True):
     # Liste des transactions où ce compte est la source (sortantes)
     transactions: List[Transaction] = Relationship(
         back_populates="source_account",
-        sa_relationship_kwargs={"foreign_keys": "[Transaction.source_account_number]"}
+        sa_relationship_kwargs={"foreign_keys": "[Transaction.source_account_number]", "cascade": "all, delete-orphan"}
     )
 
     # Liste des transactions où ce compte est la destination (entrantes)

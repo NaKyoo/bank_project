@@ -1,3 +1,8 @@
+from datetime import datetime, timedelta , timezone
+from decimal import Decimal
+from typing import Annotated, List, Optional
+import uuid
+from fastapi import Depends, HTTPException
 from datetime import datetime, timezone
 from typing import Optional, List, TYPE_CHECKING
 
@@ -6,17 +11,18 @@ from sqlmodel import SQLModel, Field, Relationship
 
 
 if TYPE_CHECKING:
-    # Import pour les annotations de type uniquement (évite import circulaire à l'exécution)
+    # typing import to avoid circular imports at runtime
     from app.models.account import BankAccount
 
 
-# Password hashing context (bcrypt) — used by User helpers
+# password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+# User model
 class User(SQLModel, table=True):
     user_id: Optional[int] = Field(default=None, primary_key=True)
-    email: str = Field(index=True)  # index pour accélérer les recherches par email
+    email: str = Field(index=True)
     password_hash: str
     name: Optional[str] = None
     last_name: Optional[str] = None
@@ -26,7 +32,7 @@ class User(SQLModel, table=True):
     creation_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     last_login: Optional[datetime] = None
 
-    # Relation inverse vers les comptes (import retardé via string pour éviter import circulaire)
+    # relation: user -> accounts
     accounts: List["BankAccount"] = Relationship(back_populates="user")
 
     def set_password(self, plain_password: str) -> None:
@@ -75,3 +81,31 @@ class UserUpdate(SQLModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
     password: Optional[str] = None
+
+
+# Simple login request/response models used by the auth endpoints
+from pydantic import BaseModel
+
+
+class UserLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserLoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: Optional[int]
+    email: str
+
+
+
+class UserRegisterRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserRegisterResponse(BaseModel):
+    id: Optional[int]
+    email: str
+    primary_account_number: str

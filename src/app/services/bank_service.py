@@ -8,6 +8,7 @@ from app.db import engine
 from app.models.account import BankAccount, Transaction, TransactionStatus
 from app.models.beneficiary import Beneficiary
 from app.models.user import User
+import uuid
 from datetime import datetime, timezone
 
 
@@ -126,12 +127,7 @@ class BankService:
     # Consultation d’un compte complet
     # ------------------------------
     def get_account_info(self, session: Session, account_number: str):
-        """
-        Récupère toutes les informations d’un compte :
-        - solde actuel
-        - liste des bénéficiaires
-        - historique des transactions
-        """
+        # return account info, beneficiaries and completed transactions
         account = self.get_account(session, account_number)  # Vérifie que le compte existe
 
         # Vérification si le compte est clôturé
@@ -186,13 +182,16 @@ class BankService:
     
 
     # Historique des transactions d'un compte
-    def get_transaction_history(self, session: Session, account_number: str):
-        """
-        Récupère les transactions liées à un compte depuis la base,
-        filtre les transactions COMPLETED et les renvoie triées par date décroissante.
-        """
+    def get_transaction_history(self, session: Session, account_number: str, current_user: User | None = None):
+        # return completed transactions for account ordered desc
         # S'assurer que le compte existe
-        _ = self.get_account(session, account_number)
+        account = self.get_account(session, account_number)
+
+        # Si un current_user est fourni, vérifier que le compte appartient à lui
+        if current_user:
+            user_accounts = [a["account_number"] for a in self.get_user_accounts(session, current_user.user_id)]
+            if account_number not in user_accounts:
+                raise HTTPException(403, "Accès refusé")
 
         transactions = session.exec(
             select(Transaction)
@@ -230,6 +229,27 @@ class BankService:
             }
             for acc in accounts
         ]
+
+    def register_user(self, session: Session, email: str, password: str):
+        """Crée un utilisateur et un compte principal, retourne {'user': user, 'primary_account_number': str}"""
+        existing = self.get_user_by_email(session, email)
+        if existing:
+            raise HTTPException(400, "Un utilisateur avec cet email existe déjà")
+
+        # Create user
+        user = User(email=email)
+        user.set_password(password)
+
+        # Create primary bank account
+        from app.models.account import BankAccount
+        primary = BankAccount(account_number=f"ACC{uuid.uuid4().hex[:12].upper()}", balance=0)
+        user.accounts.append(primary)
+
+        session.add_all([user, primary])
+        session.commit()
+        session.refresh(user)
+
+        return {"user": user, "primary_account_number": primary.account_number}
 
 
     # User management
@@ -404,6 +424,57 @@ class BankService:
         }
 
 
+
+    # ------------------------------
+    # Récupération des infos d'une transaction
+    # ------------------------------
+    def get_transaction_detail(self, session: Session, transaction_id: int, user_account_number: str):
+        # return transaction details if user_account_number is source or destination
+        transaction = session.get(Transaction, transaction_id)
+        if not transaction:
+            raise HTTPException(404, f"Transaction {transaction_id} introuvable")
+
+        if user_account_number not in [transaction.source_account_number, transaction.destination_account_number]:
+            raise HTTPException(403, "Vous n'êtes pas autorisé à consulter cette transaction")
+
+        return {
+            "transaction_id": transaction.id,
+            "transaction_type": transaction.transaction_type,
+            "amount": transaction.amount,
+            "date": transaction.date,
+            "source_account_number": transaction.source_account_number,
+            "destination_account_number": transaction.destination_account_number,
+            "status": transaction.status
+        }
+
+
+    def get_user_full_info(self, session: Session, user_id: int):
+            # return user info and associated accounts
+            user_record = session.get(User, user_id)
+            if not user_record:
+                raise HTTPException(404, f"Utilisateur avec l'ID {user_id} introuvable")
+
+            # Vérifie si l'utilisateur est actif
+            if not user_record.is_active:
+                raise HTTPException(403, f"L'utilisateur {user_record.email} est inactif")
+
+            # Liste des comptes de l'utilisateur
+            comptes_info = [
+                {
+                    "account_number": compte.account_number,
+                    "current_balance": compte.balance,
+                    "is_active": compte.is_active,
+                    "parent_account_number": compte.parent_account_number
+                }
+                for compte in user_record.bank_accounts
+            ]
+
+            return {
+                "user_id": user_record.user_id,
+                "email": user_record.email,
+                "is_active": user_record.is_active,
+                "accounts": comptes_info,
+            }
 
 
 # ------------------------------
