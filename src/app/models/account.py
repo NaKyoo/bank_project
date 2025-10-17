@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import List, Optional  
 
 from enum import Enum
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship, SQLModel, Session
 
 
 
@@ -334,19 +334,7 @@ class ArchivedBankAccount(SQLModel, table=True):
  
 
     # Obtenir l'historique des transactions triées par date décroissante
-    def get_transaction_history(self) -> list:
-        # Ne retourner que les transactions complétées (status == "completed")
-        all_transactions = [
-            t for t in (self.transactions + self.incoming_transactions)
-            if getattr(t, "status", None) == "completed"
-        ]
-        sorted_transactions = sorted(all_transactions, key=lambda t: t.date, reverse=True)
-        return [
-            {
-                "amount": t.amount,
-                "date": t.date,
-                "source": t.source_account_number,
-                "destination": t.destination_account_number
-            }
-            for t in sorted_transactions
-        ]
+    def get_transaction_history(self, session: "Session", current_user: "User") -> list:
+        from app.services.bank_service import bank_service
+
+        return bank_service.get_transaction_history(session, self.original_account_number, current_user)

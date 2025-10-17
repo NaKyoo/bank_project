@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from starlette.middleware.sessions import SessionMiddleware
+import os
 from sqlmodel import Session, select, SQLModel, create_engine
 
 
@@ -81,6 +83,10 @@ app = FastAPI(
     title="Bank Project API",
     lifespan=lifespan             # Cycle de vie défini plus haut
 )
+
+# Configure server-side sessions (utilisé pour stocker le token côté serveur si nécessaire)
+SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 
 # Inclusion du routeur principal (défini dans bank_controller)
 app.include_router(bank_controller.router)

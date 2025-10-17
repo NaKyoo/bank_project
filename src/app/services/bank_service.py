@@ -182,16 +182,24 @@ class BankService:
     
 
     # Historique des transactions d'un compte
-    def get_transaction_history(self, session: Session, account_number: str, current_user: User | None = None):
-        # return completed transactions for account ordered desc
+    def get_transaction_history(self, session: Session, account_number: str, current_user: User):
+        """Return completed transactions for an account (ordered desc).
+
+        This method requires an authenticated `current_user` (provided by the
+        FastAPI dependency `get_current_user`). It enforces that only the owner
+        of the account or an admin can access the history.
+        """
         # S'assurer que le compte existe
         account = self.get_account(session, account_number)
 
-        # Si un current_user est fourni, vérifier que le compte appartient à lui
-        if current_user:
-            user_accounts = [a["account_number"] for a in self.get_user_accounts(session, current_user.user_id)]
-            if account_number not in user_accounts:
-                raise HTTPException(403, "Accès refusé")
+        # Exiger une authentification explicite
+        if not current_user:
+            raise HTTPException(401, "Authentification requise")
+
+        # Vérifier que le compte appartient à l'utilisateur courant (ou admin)
+        user_accounts = [a["account_number"] for a in self.get_user_accounts(session, current_user.user_id)]
+        if account_number not in user_accounts and current_user.role != "admin":
+            raise HTTPException(403, "Accès refusé")
 
         transactions = session.exec(
             select(Transaction)

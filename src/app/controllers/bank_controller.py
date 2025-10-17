@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Path, Depends        
+from fastapi import APIRouter, HTTPException, Path, Depends, Header, Request      
 from decimal import Decimal                         
 from fastapi.params import Body                     
 from sqlmodel import Session, select
@@ -148,11 +148,19 @@ def list_beneficiaries(owner_account_number: str, session: Session = Depends(get
 
 
 @router.get("/accounts/{account_number}/transactions")
-def get_account_transactions(account_number: str, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
-    # get transactions for account (only completed) and ensure ownership
+def get_account_transactions(
+    account_number: str,
+    request: Request,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
     account = bank_service.get_account(session, account_number)
-    if account.user_id != current_user.user_id and current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Accès refusé")
+
+    # Vérifie la présence d'un token enregistré côté serveur dans la session
+    token_value = request.session.get("token")
+    if not token_value:
+        raise HTTPException(status_code=401, detail="Token manquant dans la session")
+
     return bank_service.get_transaction_history(session, account_number, current_user)
 
 
@@ -230,10 +238,16 @@ def open_account(
     account_number: str = Body(..., embed=True, description="Numéro du nouveau compte secondaire"),
     parent_account_number: str = Body(..., embed=True, description="Numéro du compte parent"),
     initial_balance: Decimal = Body(0, embed=True, description="Solde initial du compte"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     # create secondary account
     
+    # Only the owner of the parent account (or admin) can open a secondary account
+    parent = bank_service.get_account(session, parent_account_number)
+    if parent.user_id != current_user.user_id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Accès refusé")
+
     account = bank_service.open_account(session, account_number, parent_account_number, initial_balance)
     return {
             "message": f"Le compte {account.account_number} a été créé avec succès.",
@@ -249,9 +263,13 @@ def open_account(
 @router.post("/accounts/{account_number}/close")
 def close_account(
     account_number: str = Path(..., description="Numéro du compte à clôturer"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     # close account
+    account = bank_service.get_account(session, account_number)
+    if account.user_id != current_user.user_id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Accès refusé")
     account = bank_service.close_account(session, account_number)
     return {
         "message": f"Le compte {account.account_number} a été clôturé avec succès.",
@@ -267,9 +285,13 @@ def close_account(
 def archive_account(
     account_number: str = Path(..., description="Numéro du compte à archiver"),
     reason: str = Body(default="Clôture du compte", embed=True),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     # archive closed account
+    account = bank_service.get_account(session, account_number)
+    if account.user_id != current_user.user_id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Accès refusé")
     result = bank_service.archive_account(session, account_number, reason)
     return result
 
@@ -278,9 +300,18 @@ def archive_account(
 def get_transaction_detail(
     user_account_number: str = Path(..., description="Numéro du compte de l'utilisateur impliqué"),
     transaction_id: int = Path(..., description="ID de la transaction à consulter"),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     # get transaction details if user involved
+
+    # Only allow if the requested account belongs to the current user or user is admin
+    # (the service will also check the transaction participation)
+    # check ownership of the provided account identifier
+    # attempt to load the account; if it doesn't exist, service will raise
+    account = bank_service.get_account(session, user_account_number)
+    if account.user_id != current_user.user_id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Accès refusé")
 
     transaction_details = bank_service.get_transaction_detail(
         session=session,
@@ -296,8 +327,11 @@ def get_transaction_detail(
 
 @router.get("/users/{user_id}/full_info")
 def get_user_info(user_id: int = Path(..., description="ID de l'utilisateur"),
-                  session: Session = Depends(get_session)):
+                  session: Session = Depends(get_session),
+                  current_user: User = Depends(get_current_user)):
     # full user info
+    if current_user.user_id != user_id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Accès refusé")
     return bank_service.get_user_full_info(session, user_id)
 
 # ============================================================
@@ -323,7 +357,7 @@ def register_user(payload: UserRegisterRequest,session: Session = Depends(get_se
 # Authentifier un utilisateur
 # ============================================================
 @router.post("/users/login", response_model=UserLoginResponse)
-def login_user(payload: UserLoginRequest, session: Session = Depends(get_session)):
+def login_user(payload: UserLoginRequest, session: Session = Depends(get_session), request: Request = None):
     # authenticate user and return token
     
     # Recherchez l'utilisateur par email
@@ -333,7 +367,13 @@ def login_user(payload: UserLoginRequest, session: Session = Depends(get_session
 
     # Créez un token JWT
     access_token = create_access_token(db_user)  # type: ignore
-
+    # Enregistrer le token côté serveur dans la session (cookie côté client)
+    try:
+        if request is not None:
+            request.session["token"] = access_token
+    except Exception:
+        # Si la session n'est pas disponible pour une raison quelconque, on ignore
+        pass
     return UserLoginResponse(
         access_token=access_token,
         token_type="bearer",
