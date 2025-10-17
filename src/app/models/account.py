@@ -250,46 +250,11 @@ class BankAccount(SQLModel, table=True):
             status=TransactionStatus.PENDING
         )
         return transaction
-
-    # ------------------------------
-    # Répartir un transfert sur plusieurs comptes
-    # ------------------------------
-    
-    def complete_transfer(self, targets: list["BankAccount"], transaction: Transaction):
-        """
-        Répartit le montant d'une transaction PENDING sur plusieurs comptes.
-        Tous les comptes (y compris le parent) ont un plafond de 50 000€.
-        """
-        SECONDARY_ACCOUNT_MAX = Decimal("50000")
-
-        if transaction.status != TransactionStatus.PENDING:
-            raise ValueError("Transaction déjà complétée ou annulée")
-        
-        remaining_amount = transaction.amount
-
-        for target in targets:
-            if remaining_amount <= 0:
-                break
-            
-            plafond = SECONDARY_ACCOUNT_MAX
-            available_space = plafond - target.balance
-            if available_space <= 0:
-                continue
-            
-            to_transfer = min(remaining_amount, available_space)
-            target.balance += to_transfer
-            remaining_amount -= to_transfer
-
-        if remaining_amount > 0:
-            raise ValueError("Impossible de répartir l'intégralité du montant : plafond atteint sur tous les comptes")
-
-        transaction.status = TransactionStatus.COMPLETED
-    
-        
+      
     # ------------------------------
     # Répartir un transfert sur plusieurs comptes sans limitation pour le compte principal
     # ------------------------------
-    def complete_transfer_no_limitation(self, targets: list["BankAccount"], transaction: Transaction):
+    def complete_transfer(self, targets: list["BankAccount"], transaction: Transaction):
         """
         Répartit le montant d'une transaction PENDING sur plusieurs comptes.
         Les comptes secondaires ont un plafond de 50 000€.
