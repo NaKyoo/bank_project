@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import List, Optional  
 
 from enum import Enum
+from pydantic import BaseModel
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -21,7 +22,6 @@ class TransactionStatus(str, Enum):
     COMPLETED = "completed"
     CANCELED = "canceled"
 
-    
 # ------------------------------
 # Classe représentant une Transaction
 # ------------------------------
@@ -74,6 +74,8 @@ class BankAccount(SQLModel, table=True):
     
     is_active: bool = Field(default=True)
     closed_at: Optional[datetime] = Field(default=None)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
     
     owner_id: Optional[int] = Field(default=None, foreign_key="user.id")
     owner: Optional["User"] = Relationship( # type: ignore
@@ -248,23 +250,41 @@ class BankAccount(SQLModel, table=True):
             status=TransactionStatus.PENDING
         )
         return transaction
-
+      
     # ------------------------------
-    # Compléter un transfert
+    # Répartir un transfert sur plusieurs comptes sans limitation pour le compte principal
     # ------------------------------
-    def complete_transfer(self, target: "BankAccount", transaction: Transaction):
+    def complete_transfer(self, targets: list["BankAccount"], transaction: Transaction):
         """
-        Applique un transfert existant : débite le compte source et crédite le compte destinataire.
-
-        Args:
-            target (BankAccount): Le compte destinataire.
-            transaction (Transaction): La transaction à compléter.
-
-        Raises:
-            ValueError: Si le solde est insuffisant (non géré ici mais peut être ajouté).
+        Répartit le montant d'une transaction PENDING sur plusieurs comptes.
+        Les comptes secondaires ont un plafond de 50 000€.
+        Le compte principal (parent_account_number=None) est illimité.
         """
+        SECONDARY_ACCOUNT_MAX = Decimal("50000")
+
+        if transaction.status != TransactionStatus.PENDING:
+            raise ValueError("Transaction déjà complétée ou annulée")
+        
+        
+        remaining_amount = transaction.amount
         self.balance -= transaction.amount
-        target.balance += transaction.amount
+
+        # Répartition sur les comptes secondaires
+        for target in targets:
+            if remaining_amount <= 0:
+                break
+
+            if target.parent_account_number is not None:  # compte secondaire
+                available_space = SECONDARY_ACCOUNT_MAX - target.balance
+                if available_space <= 0:
+                    continue
+                to_transfer = min(remaining_amount, available_space)
+            else:  # compte principal illimité
+                to_transfer = remaining_amount
+
+            target.balance += to_transfer
+            remaining_amount -= to_transfer
+
         transaction.status = TransactionStatus.COMPLETED
         
     # ------------------------------
