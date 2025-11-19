@@ -149,9 +149,9 @@ def list_beneficiaries(owner_account_number: str, session: Session = Depends(get
 # ============================================================
 @router.post("/accounts/open")
 def open_account(
-    account_number: str = Body(..., embed=True, description="Numéro du nouveau compte secondaire"),
-    parent_account_number: str = Body(..., embed=True, description="Numéro du compte parent"),
-    initial_balance: Decimal = Body(0, embed=True, description="Solde initial du compte"),
+    account_number: str = Body(..., description="Numéro du nouveau compte secondaire"),
+    parent_account_number: str = Body(..., description="Numéro du compte parent"),
+    initial_balance: Decimal = Body(0, description="Solde initial du compte"),
     session: Session = Depends(get_session)
 ):
     """Crée un nouveau compte secondaire rattaché à un compte parent existant.
@@ -349,7 +349,8 @@ def get_my_accounts(
             account_number=acc.account_number,
             balance=acc.balance,
             created_at=acc.created_at.isoformat(),
-            parent_account_number=acc.parent_account_number
+            parent_account_number=acc.parent_account_number,
+            is_active=acc.is_active
         )
         for acc in all_accounts
     ]

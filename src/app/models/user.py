@@ -80,6 +80,7 @@ class AccountInfoResponse(BaseModel):
     balance: Decimal
     created_at: str
     parent_account_number: Optional[str] = None
+    is_active: bool
 
 
 class TransactionInfoResponse(BaseModel):
