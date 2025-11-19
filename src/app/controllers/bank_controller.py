@@ -336,7 +336,9 @@ def get_my_accounts(
     return [
         AccountInfoResponse(
             account_number=acc.account_number,
-            balance=acc.balance
+            balance=acc.balance,
+            created_at=acc.created_at.isoformat(),
+            parent_account_number=acc.parent_account_number
         )
         for acc in accounts
     ]
