@@ -392,9 +392,6 @@ def get_my_transactions(
         for t in transactions
     ]
     
-# ============================================================
-# Récupérer toutes les transactions d’un compte spécifique de l'utilisateur connecté
-# ============================================================
 @router.get("/accounts/{account_number}/transactions", response_model=List[TransactionInfoResponse])
 def get_account_transactions(
     account_number: str = Path(..., description="Numéro du compte"),
@@ -403,14 +400,26 @@ def get_account_transactions(
 ):
     user_id = int(current_user["user_id"])
 
-    # Vérifie que le compte appartient bien à l'utilisateur
+    # Récupère le compte
     account = session.exec(
         select(BankAccount)
         .where(BankAccount.account_number == account_number)
-        .where(BankAccount.owner_id == user_id)
     ).first()
 
     if not account:
+        raise HTTPException(status_code=404, detail="Compte introuvable ou non autorisé")
+
+    # Vérifie que l'utilisateur peut accéder au compte
+    is_owner = account.owner_id == user_id
+    is_secondary_of_user = False
+    if account.parent_account_number:
+        parent_account = session.exec(
+            select(BankAccount)
+            .where(BankAccount.account_number == account.parent_account_number)
+        ).first()
+        is_secondary_of_user = parent_account and parent_account.owner_id == user_id
+
+    if not (is_owner or is_secondary_of_user):
         raise HTTPException(status_code=404, detail="Compte introuvable ou non autorisé")
 
     # Récupère les transactions liées à ce compte
