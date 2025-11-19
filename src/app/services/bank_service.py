@@ -233,11 +233,15 @@ class BankService:
 
         # Vérifie que le parent n’a pas déjà 5 comptes secondaires
         child_accounts = session.exec(
-            select(BankAccount).where(BankAccount.parent_account_number == parent_account.account_number)
+            select(BankAccount)
+            .where(
+                (BankAccount.parent_account_number == parent_account.account_number) &
+                (BankAccount.is_active == True)
+            )
         ).all()
-        if len(child_accounts) >= 5:
-            raise HTTPException(400, f"Le compte parent {parent_account_number} ne peut pas avoir plus de 5 comptes secondaires.")
 
+        if len(child_accounts) >= 5:
+            raise HTTPException(400, f"Le compte parent {parent_account_number} ne peut pas avoir plus de 5 comptes secondaires actifs.")
         # Création d’un nouveau compte
         account = BankAccount(
             account_number=account_number,
