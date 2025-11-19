@@ -78,6 +78,8 @@ class UserLoginResponse(BaseModel):
 class AccountInfoResponse(BaseModel):
     account_number: str
     balance: Decimal
+    created_at: str
+    parent_account_number: Optional[str] = None
 
 
 class TransactionInfoResponse(BaseModel):

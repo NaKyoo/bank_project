@@ -3,7 +3,6 @@ from decimal import Decimal
 from typing import List, Optional  
 
 from enum import Enum
-from pydantic import BaseModel
 from sqlmodel import Field, Relationship, SQLModel
 
 
