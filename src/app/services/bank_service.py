@@ -217,11 +217,6 @@ class BankService:
         if initial_balance < 0:
             raise HTTPException(400, "Le solde initial ne peut pas être négatif.")
         
-        # Vérifie le nombre total de comptes
-        total_accounts = session.exec(select(BankAccount)).all()
-        if len(total_accounts) >= 5:
-            raise HTTPException(400, "Impossible de créer plus de 5 comptes au total.")
-        
         # Vérifie que le compte n'existe pas déjà
         existing_account = session.get(BankAccount, account_number)
         if existing_account and existing_account.is_active:
@@ -235,6 +230,13 @@ class BankService:
             raise HTTPException(400, f"Le compte parent {parent_account_number} est fermé.")
         if parent_account.parent_account_number is not None:
             raise HTTPException(400, "Le compte parent doit être un compte principal.")
+
+        # Vérifie que le parent n’a pas déjà 5 comptes secondaires
+        child_accounts = session.exec(
+            select(BankAccount).where(BankAccount.parent_account_number == parent_account.account_number)
+        ).all()
+        if len(child_accounts) >= 5:
+            raise HTTPException(400, f"Le compte parent {parent_account_number} ne peut pas avoir plus de 5 comptes secondaires.")
 
         # Création d’un nouveau compte
         account = BankAccount(
