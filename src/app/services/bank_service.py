@@ -106,7 +106,7 @@ class BankService:
                 destination_account_db = new_session.get(BankAccount, transaction_from_db.destination_account_number)
 
                 # Applique la logique de completion du transfert
-                source_account_db.complete_transfer(destination_account_db, transaction_from_db)
+                source_account_db.complete_transfer([destination_account_db], transaction_from_db)
 
                 # Ajoute les comptes et la transaction modifiée à la session et commit
                 new_session.add_all([source_account_db, destination_account_db, transaction_from_db])
