@@ -3,11 +3,14 @@ from fastapi import FastAPI
 from sqlmodel import Session, select, SQLModel, create_engine
 
 
-from app.controllers import bank_controller
-from app.models.account import BankAccount
-from app.models.user import User
+from .controllers import bank_controller
+from .models.account import BankAccount
+from .models.user import User
 
 from passlib.context import CryptContext
+
+from fastapi.middleware.cors import CORSMiddleware
+
 
 engine = create_engine("sqlite:///bank.db")
 
@@ -91,6 +94,21 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Bank Project API",
     lifespan=lifespan             # Cycle de vie défini plus haut
+)
+
+# ------------------------------
+# Ajout du middleware juste CORS
+# ------------------------------
+
+app.add_middleware(
+    CORSMiddleware, # permet l'ajout d'un middleware pour intercepter toute les requêtes avant d'atteindre les routes, permet d'autoriser les appels depuis une autre API # 
+    allow_origins=[
+        "http://localhost:5173", # permet l'autorisation React de faire des requêtes vers l'API
+    ],
+    allow_credentials=True, # permet l’envoi de données sensibles (comme les headers ou cookies) dans une requête cross-origin (donc entre deux ports ou domaines différents).
+    # autorise toutes les méthodes et tous les en-têtes personnalisé à être envoyer par le frontend
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 
 # Inclusion du routeur principal (défini dans bank_controller)
