@@ -1,3 +1,4 @@
+from typing import List
 from fastapi import APIRouter, HTTPException, Path, Depends        
 from decimal import Decimal                         
 from fastapi.params import Body                     
@@ -5,7 +6,7 @@ from sqlmodel import Session, select
 
 from app.models.account import BankAccount, Transaction, TransactionStatus
 from app.models.transfer import TransferRequest, Transfer  
-from app.models.user import User, UserLoginRequest, UserLoginResponse, UserRegisterRequest, UserRegisterResponse, create_access_token, get_current_user
+from app.models.user import AccountInfoResponse, TransactionInfoResponse, User, UserLoginRequest, UserLoginResponse, UserRegisterRequest, UserRegisterResponse, create_access_token, get_current_user
 from app.services.bank_service import bank_service          
 from app.db import get_session                              
 
@@ -148,9 +149,9 @@ def list_beneficiaries(owner_account_number: str, session: Session = Depends(get
 # ============================================================
 @router.post("/accounts/open")
 def open_account(
-    account_number: str = Body(..., embed=True, description="Numéro du nouveau compte secondaire"),
-    parent_account_number: str = Body(..., embed=True, description="Numéro du compte parent"),
-    initial_balance: Decimal = Body(0, embed=True, description="Solde initial du compte"),
+    account_number: str = Body(..., description="Numéro du nouveau compte secondaire"),
+    parent_account_number: str = Body(..., description="Numéro du compte parent"),
+    initial_balance: Decimal = Body(0, description="Solde initial du compte"),
     session: Session = Depends(get_session)
 ):
     """Crée un nouveau compte secondaire rattaché à un compte parent existant.
@@ -308,3 +309,137 @@ def login_user(payload: UserLoginRequest, session: Session = Depends(get_session
 @router.get("/users/me")
 def read_current_user(current_user: dict = Depends(get_current_user)):
     return current_user
+
+# ============================================================
+# Récupérer tous les comptes bancaires de l'utilisateur connecté
+# ============================================================
+@router.get("/users/me/accounts", response_model=List[AccountInfoResponse])
+def get_my_accounts(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    """
+    Récupère tous les comptes bancaires de l'utilisateur connecté,
+    principaux et secondaires, triés par date de création décroissante.
+    """
+    
+    user_id = int(current_user["user_id"])
+    
+    # Récupère les comptes principaux
+    main_accounts = session.exec(
+        select(BankAccount)
+        .where(BankAccount.owner_id == user_id)
+        .order_by(BankAccount.created_at.desc())
+    ).all()
+    
+    main_account_numbers = [acc.account_number for acc in main_accounts]
+
+    # Récupère les comptes secondaires liés aux principaux
+    secondary_accounts = session.exec(
+        select(BankAccount)
+        .where(BankAccount.parent_account_number.in_(main_account_numbers))
+        .order_by(BankAccount.created_at.desc())
+    ).all()
+
+    # Concatène principaux + secondaires
+    all_accounts = main_accounts + secondary_accounts
+
+    return [
+        AccountInfoResponse(
+            account_number=acc.account_number,
+            balance=acc.balance,
+            created_at=acc.created_at.isoformat(),
+            parent_account_number=acc.parent_account_number,
+            is_active=acc.is_active
+        )
+        for acc in all_accounts
+    ]
+    
+# ============================================================
+# Récupérer toutes les transactions de l'utilisateur connecté
+# ============================================================
+@router.get("/users/me/transactions", response_model=List[TransactionInfoResponse])
+def get_my_transactions(
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    user_id = int(current_user["user_id"])
+
+    # Récupère tous les comptes de l'utilisateur
+    accounts = session.exec(select(BankAccount).where(BankAccount.owner_id == user_id)).all()
+    account_numbers = [acc.account_number for acc in accounts]
+
+    if not account_numbers:
+        return []
+
+    # Récupère toutes les transactions liées à ces comptes
+    transactions = session.exec(
+        select(Transaction)
+        .where(
+            (Transaction.source_account_number.in_(account_numbers)) |
+            (Transaction.destination_account_number.in_(account_numbers))
+        )
+        .order_by(Transaction.date.desc())
+    ).all()
+
+    return [
+        TransactionInfoResponse(
+            transaction_type=t.transaction_type,
+            amount=t.amount,
+            date=t.date,
+            source_account_number=t.source_account_number,
+            destination_account_number=t.destination_account_number
+        )
+        for t in transactions
+    ]
+    
+@router.get("/accounts/{account_number}/transactions", response_model=List[TransactionInfoResponse])
+def get_account_transactions(
+    account_number: str = Path(..., description="Numéro du compte"),
+    current_user: dict = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    user_id = int(current_user["user_id"])
+
+    # Récupère le compte
+    account = session.exec(
+        select(BankAccount)
+        .where(BankAccount.account_number == account_number)
+    ).first()
+
+    if not account:
+        raise HTTPException(status_code=404, detail="Compte introuvable ou non autorisé")
+
+    # Vérifie que l'utilisateur peut accéder au compte
+    is_owner = account.owner_id == user_id
+    is_secondary_of_user = False
+    if account.parent_account_number:
+        parent_account = session.exec(
+            select(BankAccount)
+            .where(BankAccount.account_number == account.parent_account_number)
+        ).first()
+        is_secondary_of_user = parent_account and parent_account.owner_id == user_id
+
+    if not (is_owner or is_secondary_of_user):
+        raise HTTPException(status_code=404, detail="Compte introuvable ou non autorisé")
+
+    # Récupère les transactions liées à ce compte
+    transactions = session.exec(
+        select(Transaction)
+        .where(
+            (Transaction.source_account_number == account_number) |
+            (Transaction.destination_account_number == account_number)
+        )
+        .order_by(Transaction.date.desc())
+    ).all()
+
+    return [
+        TransactionInfoResponse(
+            transaction_type=t.transaction_type,
+            amount=t.amount,
+            date=t.date,
+            source_account_number=t.source_account_number,
+            destination_account_number=t.destination_account_number
+        )
+        for t in transactions
+    ]

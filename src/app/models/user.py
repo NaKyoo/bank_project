@@ -50,6 +50,10 @@ class User(SQLModel, table=True):
         return new_user
     
     
+# ============================================================
+# Schemas Pydantic pour les requêtes et réponses
+# ============================================================
+    
 class UserRegisterRequest(BaseModel):
     email: EmailStr
     password: Annotated[str, StringConstraints(min_length=8, pattern=r"^[A-Za-z\d@$!%*?&]+$")]
@@ -71,10 +75,24 @@ class UserLoginResponse(BaseModel):
     user_id: int
     email: str
 
+class AccountInfoResponse(BaseModel):
+    account_number: str
+    balance: Decimal
+    created_at: str
+    parent_account_number: Optional[str] = None
+    is_active: bool
 
-# ------------------------------
+
+class TransactionInfoResponse(BaseModel):
+    transaction_type: str
+    amount: Decimal
+    date: datetime
+    source_account_number: str | None
+    destination_account_number: str | None
+
+# ============================================================
 # Config JWT
-# ------------------------------
+# ============================================================
 
 bearer_scheme = HTTPBearer()
 
