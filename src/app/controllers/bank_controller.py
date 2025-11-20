@@ -369,6 +369,13 @@ def get_my_transactions(
     accounts = session.exec(select(BankAccount).where(BankAccount.owner_id == user_id)).all()
     account_numbers = [acc.account_number for acc in accounts]
 
+    secondary_accounts = session.exec(
+        select(BankAccount)
+        .where(BankAccount.parent_account_number.in_(account_numbers))
+    ).all()
+    
+    all_account_numbers = account_numbers + [acc.account_number for acc in secondary_accounts]
+    
     if not account_numbers:
         return []
 
@@ -376,8 +383,8 @@ def get_my_transactions(
     transactions = session.exec(
         select(Transaction)
         .where(
-            (Transaction.source_account_number.in_(account_numbers)) |
-            (Transaction.destination_account_number.in_(account_numbers))
+            (Transaction.source_account_number.in_(all_account_numbers)) |
+            (Transaction.destination_account_number.in_(all_account_numbers))
         )
         .order_by(Transaction.date.desc())
     ).all()
