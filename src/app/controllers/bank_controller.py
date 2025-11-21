@@ -119,8 +119,9 @@ def get_account_info(account_number: str = Path(..., description="Numéro du com
 # Ajouter un bénéficiaire à un compte
 # ------------------------------
 @router.post("/accounts/{owner_account_number}/beneficiaries")
-def add_beneficiary(owner_account_number: str, 
-                    beneficiary_account_number: str = Body(..., embed=True), 
+def add_beneficiary(owner_account_number: str,
+                    beneficiary_account_number: str = Body(..., embed=True),
+                    beneficiary_name: str | None = Body(default=None, embed=True),
                     session: Session = Depends(get_session)):
     """
     Endpoint pour ajouter un bénéficiaire :
@@ -128,7 +129,7 @@ def add_beneficiary(owner_account_number: str,
     - Vérifie que ce n’est pas le même compte
     - Crée un lien Beneficiary en base
     """
-    return bank_service.add_beneficiary(session, owner_account_number, beneficiary_account_number)
+    return bank_service.add_beneficiary(session, owner_account_number, beneficiary_account_number, beneficiary_name)
 
 
 # ------------------------------
@@ -141,7 +142,7 @@ def list_beneficiaries(owner_account_number: str, session: Session = Depends(get
     - Retourne la liste des numéros de comptes bénéficiaires
     """
     beneficiaries = bank_service.get_beneficiaries(session, owner_account_number)
-    return [{"beneficiary_account_number": b} for b in beneficiaries]
+    return beneficiaries
 
 
 # ============================================================

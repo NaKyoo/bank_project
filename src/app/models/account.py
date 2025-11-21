@@ -309,7 +309,7 @@ class BankAccount(SQLModel, table=True):
         return transaction
 
     # Ajouter un compte bénéficiaire (autre compte autorisé à recevoir des transferts)
-    def add_beneficiary(self, beneficiary_account: "BankAccount") -> "Beneficiary":  # type: ignore
+    def add_beneficiary(self, beneficiary_account: "BankAccount", beneficiary_name: Optional[str] = None) -> "Beneficiary":  # type: ignore
         from app.models.beneficiary import Beneficiary  # Import retardé pour éviter une boucle d'importation
 
         # Vérifie que le bénéficiaire n'est pas le compte lui-même
@@ -324,7 +324,8 @@ class BankAccount(SQLModel, table=True):
         # Crée un nouvel objet Beneficiary liant les deux comptes
         new_beneficiary = Beneficiary(
             owner_account_number=self.account_number,
-            beneficiary_account_number=beneficiary_account.account_number
+            beneficiary_account_number=beneficiary_account.account_number,
+            beneficiary_name=beneficiary_name
         )
 
         # Ajoute ce bénéficiaire à la liste des bénéficiaires du compte

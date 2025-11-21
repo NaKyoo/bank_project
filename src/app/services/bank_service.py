@@ -124,13 +124,13 @@ class BankService:
     # ------------------------------
     # Ajout d’un bénéficiaire
     # ------------------------------
-    def add_beneficiary(self, session: Session, owner_account_number: str, target_account_number: str) -> Beneficiary:
+    def add_beneficiary(self, session: Session, owner_account_number: str, target_account_number: str, beneficiary_name: str | None = None) -> Beneficiary:
         """
         Ajoute un bénéficiaire (autre compte) pour un compte donné.
         """
         owner = self.get_account(session, owner_account_number)     # Récupère le compte propriétaire
         target = self.get_account(session, target_account_number)   # Récupère le compte à ajouter comme bénéficiaire
-        new_beneficiary = owner.add_beneficiary(target)             # Appelle la logique du modèle
+        new_beneficiary = owner.add_beneficiary(target, beneficiary_name=beneficiary_name)             # Appelle la logique du modèle
         session.add(new_beneficiary)                                # Ajoute le bénéficiaire dans la session
         session.commit()                                            # Enregistre la modification
         session.refresh(new_beneficiary)                            # Rafraîchit les données depuis la base
@@ -153,9 +153,9 @@ class BankService:
         if not account.is_active:
             raise HTTPException(403, "Ce compte est clôturé et ne peut plus être consulté")
         
-        # Liste des bénéficiaires associés à ce compte
-        beneficiaries = session.exec(
-            select(Beneficiary.beneficiary_account_number)
+        # Liste des bénéficiaires associés à ce compte (numéro + nom éventuel)
+        beneficiary_rows = session.exec(
+            select(Beneficiary)
             .where(Beneficiary.owner_account_number == account_number)
         ).all()
 
@@ -173,7 +173,13 @@ class BankService:
         return {
             "account_number": account.account_number,
             "current_balance": account.balance,
-            "beneficiaries": [{"beneficiary_account_number": b} for b in beneficiaries],
+            "beneficiaries": [
+                {
+                    "beneficiary_account_number": b.beneficiary_account_number,
+                    "beneficiary_name": b.beneficiary_name
+                }
+                for b in beneficiary_rows
+            ],
             "transactions": [
                 {
                     "transaction_type": t.transaction_type,
@@ -194,10 +200,19 @@ class BankService:
         """
         Récupère uniquement les numéros de comptes bénéficiaires d’un compte donné.
         """
-        return session.exec(
-            select(Beneficiary.beneficiary_account_number)
+        rows = session.exec(
+            select(Beneficiary)
             .where(Beneficiary.owner_account_number == account_number)
         ).all()
+
+        # Retourne une liste de dicts { beneficiary_account_number, beneficiary_name }
+        return [
+            {
+                "beneficiary_account_number": r.beneficiary_account_number,
+                "beneficiary_name": r.beneficiary_name
+            }
+            for r in rows
+        ]
         
     # ============================================================
     # Ouverture d’un compte

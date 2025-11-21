@@ -20,6 +20,9 @@ class Beneficiary(SQLModel, table=True):
     # Numéro du compte du bénéficiaire (clé étrangère vers BankAccount.account_number)
     beneficiary_account_number: str = Field(foreign_key="bankaccount.account_number")
 
+    # Nom ou alias défini par le propriétaire pour retrouver plus facilement le bénéficiaire
+    beneficiary_name: Optional[str] = Field(default=None)
+
     # Relation vers le compte propriétaire
     owner: Optional["BankAccount"] = Relationship(   # type: ignore pour éviter une erreur d’import circulaire
         back_populates="beneficiaries",              # Lien vers l’attribut 'beneficiaries' dans la classe BankAccount
