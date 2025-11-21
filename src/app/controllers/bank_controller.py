@@ -392,6 +392,7 @@ def get_my_transactions(
 
     return [
         TransactionInfoResponse(
+            id=t.id,    
             transaction_type=t.transaction_type,
             amount=t.amount,
             date=t.date,
@@ -443,6 +444,7 @@ def get_account_transactions(
 
     return [
         TransactionInfoResponse(
+            id=t.id,
             transaction_type=t.transaction_type,
             amount=t.amount,
             date=t.date,

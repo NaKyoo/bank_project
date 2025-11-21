@@ -84,6 +84,7 @@ class AccountInfoResponse(BaseModel):
 
 
 class TransactionInfoResponse(BaseModel):
+    id: int
     transaction_type: str
     amount: Decimal
     date: datetime
