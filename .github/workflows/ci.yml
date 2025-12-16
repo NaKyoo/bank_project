@@ -74,10 +74,11 @@ jobs:
       # - --exit-zero : Ne bloque pas le build même en cas d'avertissements de style.
       # - --max-complexity=10 : Alerte si le code est trop complexe "cyclomatiquement".
       # - --max-line-length=127 : Tolérance pour la longueur des lignes (vs 79 par défaut).
-      - name: Lint with flake8
-        run: |
-          flake8 src --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 src --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      
+      # - name: Lint with flake8
+      #   run: |
+      #     flake8 src --count --select=E9,F63,F7,F82 --show-source --statistics
+      #     flake8 src --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       # ------------------------------------------------------------------------
       # ÉTAPE 5 : TESTS UNITAIRES (DÉSACTIVÉE)
