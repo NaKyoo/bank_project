@@ -1,56 +1,89 @@
 name: CI Bank Project
 
-# ------------------------------------------------------------------
-# DÉFINITION DU WORKFLOW (SCÉNARIO)
-# ------------------------------------------------------------------
-# Ce fichier traduit votre story :
-# "JE VEUX que lors d’un push sur GITHUB, que mon application soit directement build"
-# "AFIN DE pouvoir être notifié si une modification d’un développeur à eu un impact négatif"
+# ==============================================================================
+# NOM DU WORKFLOW : CI Bank Project
+# ==============================================================================
+# DESCRIPTION :
+# Ce pipeline d'Intégration Continue (CI) automatise la vérification du code
+# à chaque modification poussée sur le dépôt. Il garantit que le code est
+# compilable et respecte les normes de qualité définies.
+#
+# OBJECTIFS (User Story) :
+# "En tant que Développeur, je veux que lors d’un push sur GitHub, mon application
+# soit directement buildée, afin d'être notifié si une modification a eu un impact négatif."
+# ==============================================================================
 
-# 1. DÉCLENCHEUR (TRIGGER)
-# On définit quand l'action doit se lancer. Ici, à chaque "push" sur n'importe quelle branche.
+# ------------------------------------------------------------------------------
+# DÉCLENCHEUR (TRIGGER)
+# ------------------------------------------------------------------------------
+# Le workflow se déclenche automatiquement à chaque événement "push",
+# quelle que soit la branche concernée.
 on: [push]
 
 jobs:
   build-and-verify:
-    # 2. ENVIRONNEMENT
-    # L'environnement sur lequel tourne l'action (une machine virtuelle Ubuntu prête à l'emploi).
+    # --------------------------------------------------------------------------
+    # JOB : BUILD ET VÉRIFICATION
+    # --------------------------------------------------------------------------
+    # Ce job configure l'environnement, installe les dépendances et lance l'analyse.
+    # Environnement d'exécution : Dernière version stable d'Ubuntu.
     runs-on: ubuntu-latest
 
     steps:
-      # 3. ÉTAPES (STEPS)
-      
-      # Étape A : Récupérer le code source du dépôt (Git Checkout)
+      # ------------------------------------------------------------------------
+      # ÉTAPE 1 : RÉCUPÉRATION DU CODE
+      # ------------------------------------------------------------------------
+      # Utilise l'action officielle 'checkout' pour cloner le code du dépôt
+      # dans l'environnement virtuel.
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Étape B : Installer et configurer Python
+      # ------------------------------------------------------------------------
+      # ÉTAPE 2 : CONFIGURATION DE L'ENVIRONNEMENT PYTHON
+      # ------------------------------------------------------------------------
+      # Installe et configure la version spécifiée de Python.
+      # Utilise 'setup-python' pour une mise en place rapide et isolée.
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13.7" # On s'assure d'utiliser une version stable de Python
+          python-version: "3.13.7" # Version spécifique demandée pour la cohérence des environnements.
 
-      # Étape C : Installer les dépendances du projet
+      # ------------------------------------------------------------------------
+      # ÉTAPE 3 : INSTALLATION DES DÉPENDANCES
+      # ------------------------------------------------------------------------
+      # 1. Met à jour 'pip' pour éviter les avertissements de version.
+      # 2. Installe les paquets listés dans 'requirements.txt' si le fichier existe.
+      # 3. Installe 'flake8', l'outil de linter utilisé pour l'analyse statique.
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          # On installe aussi un "Linter" (flake8) pour analyser le code.
-          # C'est souvent ce qu'on appelle le "build" en Python (vérifier que ça s'installe et que c'est propre).
           pip install flake8
 
-      # Étape D : Analyser le code (Build / Lint)
-      # Si cette étape échoue (ex: erreur de syntaxe), le workflow s'arrête et GitHub vous envoie une notification.
-      # Cela répond à votre critère : "notifié si une modification a un impact négatif".
+      # ------------------------------------------------------------------------
+      # ÉTAPE 4 : ANALYSE STATIQUE DU CODE (LINTING)
+      # ------------------------------------------------------------------------
+      # Analyse le code source (dossier 'src') pour détecter les erreurs.
+      #
+      # Commande 1 (Critique) :
+      # - Vérifie les erreurs de syntaxe fatales (E9, F63, F7, F82).
+      # - Si une erreur est trouvée, le build échoue immédiatement (Stop the build).
+      #
+      # Commande 2 (Qualité) :
+      # - Vérifie la complexité et le style du code.
+      # - --exit-zero : Ne bloque pas le build même en cas d'avertissements de style.
+      # - --max-complexity=10 : Alerte si le code est trop complexe "cyclomatiquement".
+      # - --max-line-length=127 : Tolérance pour la longueur des lignes (vs 79 par défaut).
       - name: Lint with flake8
         run: |
-          # Vérifie les erreurs de syntaxe (E9, F63, etc.) et arrête le build si trouvé.
           flake8 src --count --select=E9,F63,F7,F82 --show-source --statistics
-          # Vérifie le style (optionnel) mais ne bloque pas le build (--exit-zero).
           flake8 src --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-      # Étape E : Lancer les tests (Optionnel pour l'instant)
-      # Si vous ajoutez des tests avec pytest plus tard, décommenter les lignes ci-dessous.
+      # ------------------------------------------------------------------------
+      # ÉTAPE 5 : TESTS UNITAIRES (DÉSACTIVÉE)
+      # ------------------------------------------------------------------------
+      # Section réservée pour l'exécution future des tests automatisés avec pytest.
+      # Actuellement commentée en attente de l'implémentation des tests.
       # - name: Test with pytest
       #   run: |
       #     pip install pytest
