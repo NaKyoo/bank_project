@@ -25,4 +25,6 @@ def test_read_root():
     """
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {"message": "Hello, FastAPI!"}
+    # MODIFICATION VOLONTAIRE POUR FAIRE ECHOUER LE TEST CI/CD
+    # assert response.json() == {"message": "Hello, FastAPI!"}
+    assert response.json() == {"message": "Ce message fera échouer le test"}
