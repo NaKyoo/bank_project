@@ -82,7 +82,7 @@ class AccountInfoResponse(BaseModel):
     parent_account_number: Optional[str] = None
     is_active: bool
 
-
+# ============================================================
 class TransactionInfoResponse(BaseModel):
     id: int
     transaction_type: str
