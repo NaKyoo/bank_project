@@ -307,7 +307,7 @@ class BankService:
     # ============================================================
     # Archivage d’un compte clôturé
     # ============================================================
-    def archive_account(self, session: Session, account_number: str, reason: str = "Clôture du compte"):
+    def archive_account(self, session: Session, account_number: str, _reason: str = "Clôture du compte"):
         """
         Archive un compte clôturé :
         - Crée un ArchivedBankAccount à partir de BankAccount.archive()
