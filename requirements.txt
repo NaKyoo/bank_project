@@ -6,4 +6,6 @@ passlib[bcrypt]
 argon2_cffi
 PyJWT
 pydantic[email]
+pytest
+httpx
 # If you need additional packages for development or testing, keep them in a separate dev requirements file.
