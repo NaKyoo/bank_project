@@ -5,8 +5,6 @@ from typing import List, Optional
 from enum import Enum
 from sqlmodel import Field, Relationship, SQLModel
 
-
-
 class TransactionStatus(str, Enum):
     """
     Enumération représentant les différents états possibles d'une transaction.
@@ -85,9 +83,9 @@ class BankAccount(SQLModel, table=True):
     # ==============================
     # Lien parent-enfant
     # ==============================
-    
+
     parent_account_number: Optional[str] = Field(default=None, foreign_key="bankaccount.account_number")
-    
+
     # Le parent (compte principal)
     parent_account: Optional["BankAccount"] = Relationship(
         back_populates="child_accounts",

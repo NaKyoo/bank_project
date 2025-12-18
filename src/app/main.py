@@ -1,29 +1,78 @@
+"""
+Module principal de l'application Bank Project API.
+
+Ce module configure et initialise l'application FastAPI avec :
+- Configuration de la base de données SQLite
+- Gestion du cycle de vie (lifespan) de l'application
+- Middleware CORS pour les requêtes cross-origin
+- Inclusion des routes définies dans les contrôleurs
+
+Attributes:
+    engine: Moteur SQLAlchemy pour la connexion à la base de données SQLite
+
+Example:
+    Pour lancer l'application :
+        $ uvicorn app.main:app --reload
+
+Author:
+    Bank Project Team
+    
+Version:
+    1.0.0
+"""
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlmodel import Session, select, SQLModel, create_engine
+from passlib.context import CryptContext
+from fastapi.middleware.cors import CORSMiddleware
 
-
+# Imports des modules de l'application
 from .controllers import bank_controller
 from .models.account import BankAccount
 from .models.user import User
 
-from passlib.context import CryptContext
-
-from fastapi.middleware.cors import CORSMiddleware
-
-
+# Configuration de la base de données
+# Utilise SQLite pour le stockage persistant des données
 engine = create_engine("sqlite:///bank.db")
 
-# ------------------------------
-# Définition du cycle de vie (lifespan) de l’application
-# ------------------------------
+
+# ==============================================================================
+# CYCLE DE VIE DE L'APPLICATION
+# ==============================================================================
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Fonction exécutée automatiquement au démarrage (startup)
-    et à l’arrêt (shutdown) de l’application FastAPI.
-    Elle permet d’initialiser la base de données et d’ajouter des données de test.
+    Gestionnaire du cycle de vie de l'application FastAPI.
+    
+    Cette fonction asynchrone gère les événements de démarrage et d'arrêt
+    de l'application. Elle est exécutée automatiquement par FastAPI.
+    
+    Fonctionnalités au démarrage (startup) :
+        - Création automatique des tables de la base de données
+        - Initialisation d'un utilisateur de démonstration
+        - Création de comptes bancaires de test
+    
+    Fonctionnalités à l'arrêt (shutdown) :
+        - Libération des ressources (si nécessaire)
+        - Fermeture des connexions (si nécessaire)
+    
+    Args:
+        app (FastAPI): Instance de l'application FastAPI
+        
+    Yields:
+        None: Contrôle rendu à l'application pendant son exécution
+        
+    Example:
+        Cette fonction est utilisée automatiquement par FastAPI :
+        >>> app = FastAPI(lifespan=lifespan)
+        
+    Note:
+        Les données de test sont créées uniquement si la base est vide.
+        Cela évite les doublons lors des redémarrages.
     """
+
 
     # ---- Startup ----
     # Création automatique des tables définies dans les modèles SQLModel (si elles n’existent pas)
@@ -47,8 +96,12 @@ async def lifespan(app: FastAPI):
             session.commit()
             session.refresh(user)
             
-        # Si aucun compte n’existe encore dans la base...
-        if not session.exec(select(BankAccount)).first():
+        # Si aucun compte n'existe encore dans la base pour cet utilisateur...
+        existing_accounts = session.exec(
+            select(BankAccount).where(BankAccount.owner_id == user.id)
+        ).all()
+        
+        if not existing_accounts:
             # Création des comptes bancaires de base
             compte_courant = BankAccount(
                 account_number="COMPTE_COURANT",
@@ -88,28 +141,43 @@ async def lifespan(app: FastAPI):
     # Aucun nettoyage spécifique n’est nécessaire dans ce cas.
 
 
-# ------------------------------
-# Création de l’application FastAPI
-# ------------------------------
+# ==============================================================================
+# CONFIGURATION DE L'APPLICATION FASTAPI
+# ==============================================================================
+
 app = FastAPI(
     title="Bank Project API",
-    lifespan=lifespan             # Cycle de vie défini plus haut
+    description="API REST pour la gestion de comptes bancaires avec authentification JWT",
+    version="1.0.0",
+    lifespan=lifespan,  # Gestionnaire du cycle de vie défini ci-dessus
+    docs_url="/docs",   # Documentation Swagger UI
+    redoc_url="/redoc"  # Documentation ReDoc
 )
 
-# ------------------------------
-# Ajout du middleware juste CORS
-# ------------------------------
+# ==============================================================================
+# CONFIGURATION DU MIDDLEWARE CORS
+# ==============================================================================
+# Le middleware CORS (Cross-Origin Resource Sharing) permet aux applications
+# frontend (React, Vue, etc.) de communiquer avec l'API depuis un domaine différent.
 
 app.add_middleware(
-    CORSMiddleware, # permet l'ajout d'un middleware pour intercepter toute les requêtes avant d'atteindre les routes, permet d'autoriser les appels depuis une autre API # 
+    CORSMiddleware,
+    # Origines autorisées à faire des requêtes vers l'API
+    # En production, remplacer par les domaines réels (ex: https://monapp.com)
     allow_origins=[
         "http://localhost", # permet l'autorisation React de faire des requêtes vers l'API
     ],
-    allow_credentials=True, # permet l’envoi de données sensibles (comme les headers ou cookies) dans une requête cross-origin (donc entre deux ports ou domaines différents).
-    # autorise toutes les méthodes et tous les en-têtes personnalisé à être envoyer par le frontend
+    # Permet l'envoi de cookies et headers d'authentification
+    allow_credentials=True,
+    # Méthodes HTTP autorisées (GET, POST, PUT, DELETE, etc.)
     allow_methods=["*"],
+    # Headers personnalisés autorisés (Authorization, Content-Type, etc.)
     allow_headers=["*"]
 )
 
-# Inclusion du routeur principal (défini dans bank_controller)
+# ==============================================================================
+# INCLUSION DES ROUTES
+# ==============================================================================
+# Toutes les routes de l'API sont définies dans le module bank_controller
+# et sont automatiquement préfixées et documentées par FastAPI
 app.include_router(bank_controller.router)
