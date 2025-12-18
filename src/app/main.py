@@ -148,7 +148,7 @@ app.add_middleware(
     # Origines autorisées à faire des requêtes vers l'API
     # En production, remplacer par les domaines réels (ex: https://monapp.com)
     allow_origins=[
-        "http://localhost", # permet l'autorisation React de faire des requêtes vers l'API
+        "http://bankservice.com", # permet l'autorisation React de faire des requêtes vers l'API
     ],
     # Permet l'envoi de cookies et headers d'authentification
     allow_credentials=True,
