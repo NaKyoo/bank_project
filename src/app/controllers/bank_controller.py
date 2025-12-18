@@ -326,24 +326,13 @@ def get_my_accounts(
     
     user_id = int(current_user["user_id"])
     
-    # Récupère les comptes principaux
-    main_accounts = session.exec(
+    # Récupère TOUS les comptes de l'utilisateur (principaux ET secondaires)
+    # Pas besoin de requête séparée car tous les comptes ont owner_id = user_id
+    all_accounts = session.exec(
         select(BankAccount)
         .where(BankAccount.owner_id == user_id)
         .order_by(BankAccount.created_at.desc())
     ).all()
-    
-    main_account_numbers = [acc.account_number for acc in main_accounts]
-
-    # Récupère les comptes secondaires liés aux principaux
-    secondary_accounts = session.exec(
-        select(BankAccount)
-        .where(BankAccount.parent_account_number.in_(main_account_numbers))
-        .order_by(BankAccount.created_at.desc())
-    ).all()
-
-    # Concatène principaux + secondaires
-    all_accounts = main_accounts + secondary_accounts
 
     return [
         AccountInfoResponse(
