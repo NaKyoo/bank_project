@@ -28,6 +28,8 @@ DATABASE_URL = "sqlite:///./bank.db"
 
 engine = create_engine(DATABASE_URL, echo=True)
 
+def create_db_and_tables():
+    SQLModel.metadata.create_all(engine)
 
 # ==============================================================================
 # DÉPENDANCE FASTAPI - SESSION DE BASE DE DONNÉES
