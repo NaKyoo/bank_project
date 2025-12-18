@@ -5,41 +5,24 @@ Ce module configure et initialise l'application FastAPI avec :
 - Configuration de la base de données SQLite
 - Gestion du cycle de vie (lifespan) de l'application
 - Middleware CORS pour les requêtes cross-origin
-- Inclusion des routes définies dans les contrôleurs
+Application principale FastAPI pour la gestion bancaire.
 
-Attributes:
-    engine: Moteur SQLAlchemy pour la connexion à la base de données SQLite
-
-Example:
-    Pour lancer l'application :
-        $ uvicorn app.main:app --reload
-
-Author:
-    Bank Project Team
-    
-Version:
-    1.0.0
+Ce module configure l'application FastAPI, initialise la base de données,
+et enregistre les routes de l'API.
 """
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from sqlmodel import Session, select, SQLModel, create_engine
-from passlib.context import CryptContext
 from fastapi.middleware.cors import CORSMiddleware
+from sqlmodel import Session, select, SQLModel
 
-# Imports des modules de l'application
-from .controllers import bank_controller
-from .models.account import BankAccount
-from .models.user import User
+from app.db import engine, create_db_and_tables
+from app.models.account import BankAccount
+from app.models.user import User
+from app.controllers.bank_controller import router
 
-# Configuration de la base de données
-# Utilise SQLite pour le stockage persistant des données
-engine = create_engine("sqlite:///bank.db")
+from passlib.context import CryptContext
 
-
-# ==============================================================================
-# CYCLE DE VIE DE L'APPLICATION
-# ==============================================================================
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
