@@ -146,13 +146,14 @@ def list_beneficiaries(owner_account_number: str, session: Session = Depends(get
 
 
 # ============================================================
-# Ouvrir un compte
+# Ouvrir un nouveau compte secondaire
 # ============================================================
 @router.post("/accounts/open")
 def open_account(
     account_number: str = Body(..., description="Numéro du nouveau compte secondaire"),
     parent_account_number: str = Body(..., description="Numéro du compte parent"),
     initial_balance: Decimal = Body(0, description="Solde initial du compte"),
+    current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
     """Crée un nouveau compte secondaire rattaché à un compte parent existant.
@@ -160,7 +161,8 @@ def open_account(
     - Solde initial >= 0
     - Nombre total de comptes maximum : 5"""
     
-    account = bank_service.open_account(session, account_number, parent_account_number, initial_balance)
+    user_id = int(current_user["user_id"])
+    account = bank_service.open_account(session, account_number, parent_account_number, initial_balance, user_id)
     return {
             "message": f"Le compte {account.account_number} a été créé avec succès.",
             "account_number": account.account_number,

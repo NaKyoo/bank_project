@@ -217,7 +217,7 @@ class BankService:
     # ============================================================
     # Ouverture d’un compte
     # ============================================================
-    def open_account(self, session: Session, account_number: str, parent_account_number: str, initial_balance: Decimal = 0) -> BankAccount:
+    def open_account(self, session: Session, account_number: str, parent_account_number: str, initial_balance: Decimal = 0, owner_id: int = None) -> BankAccount:
         """Ouvre un nouveau compte secondaire :
         - Vérifie que le compte n’existe pas déjà actif
         - Vérifie que le parent existe et est un compte principal actif
@@ -257,12 +257,13 @@ class BankService:
 
         if len(child_accounts) >= 5:
             raise HTTPException(400, f"Le compte parent {parent_account_number} ne peut pas avoir plus de 5 comptes secondaires actifs.")
-        # Création d’un nouveau compte
+        # Création d'un nouveau compte avec owner_id
         account = BankAccount(
             account_number=account_number,
             balance=initial_balance,
             is_active=True,
-            parent_account_number=parent_account.account_number
+            parent_account_number=parent_account.account_number,
+            owner_id=owner_id or parent_account.owner_id  # Utilise l'owner_id fourni ou celui du parent
         )
 
         session.add(account)
