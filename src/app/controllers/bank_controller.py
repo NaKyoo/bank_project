@@ -320,20 +320,56 @@ def get_my_accounts(
     session: Session = Depends(get_session)
 ):
     """
-    Récupère tous les comptes bancaires de l'utilisateur connecté,
-    principaux et secondaires, triés par date de création décroissante.
+    Récupère tous les comptes bancaires de l'utilisateur connecté.
+    
+    Cette route retourne la liste complète des comptes bancaires appartenant
+    à l'utilisateur authentifié, incluant les comptes principaux et secondaires.
+    Les comptes sont triés par date de création décroissante (plus récents en premier).
+    
+    Args:
+        current_user (User): Utilisateur actuellement connecté (injecté par le système d'authentification)
+        session (Session): Session de base de données SQLModel (injection de dépendance)
+        
+    Returns:
+        List[AccountInfoResponse]: Liste des comptes bancaires avec leurs informations :
+            - account_number (str): Numéro unique du compte
+            - balance (Decimal): Solde actuel du compte
+            - is_active (bool): Statut d'activité du compte
+            - closed_at (datetime): Date de fermeture (si le compte est fermé)
+            - created_at (datetime): Date de création du compte
+            - parent_account_number (str): Numéro du compte parent (pour comptes secondaires)
+            - child_accounts (List): Liste des comptes secondaires (pour comptes principaux)
+            
+    Raises:
+        HTTPException 401: Si l'utilisateur n'est pas authentifié
+        
+    Example:
+        >>> # Requête GET avec token JWT
+        >>> headers = {"Authorization": "Bearer <token>"}
+        >>> response = requests.get("/users/me/accounts", headers=headers)
+        >>> accounts = response.json()
+        >>> # Retourne : [{"account_number": "COMPTE_COURANT", "balance": 150.00, ...}, ...]
+        
+    Note:
+        - Tous les comptes (principaux et secondaires) ont le même owner_id
+        - Une seule requête SQL suffit pour récupérer tous les comptes
+        - Les comptes secondaires ont un parent_account_number non-null
+        - Les comptes principaux ont parent_account_number = null
     """
     
+    # Extraction de l'ID utilisateur depuis le token JWT décodé
     user_id = int(current_user["user_id"])
     
     # Récupère TOUS les comptes de l'utilisateur (principaux ET secondaires)
-    # Pas besoin de requête séparée car tous les comptes ont owner_id = user_id
+    # Note : Pas besoin de requête séparée car tous les comptes ont owner_id = user_id
+    # Les comptes secondaires appartiennent aussi à l'utilisateur, ils ont juste un parent_account_number
     all_accounts = session.exec(
         select(BankAccount)
         .where(BankAccount.owner_id == user_id)
-        .order_by(BankAccount.created_at.desc())
+        .order_by(BankAccount.created_at.desc())  # Tri par date de création décroissante
     ).all()
 
+    # Construction de la réponse avec toutes les informations des comptes
     return [
         AccountInfoResponse(
             account_number=acc.account_number,
