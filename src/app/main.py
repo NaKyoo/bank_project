@@ -96,7 +96,7 @@ async def lifespan(app: FastAPI):
             session.commit()
             session.refresh(user)
             
-        # Si aucun compte n'existe encore dans la base pour cet utilisateur...
+        # Si aucun compte n'existe encore dans la base pour cet utilisateur
         existing_accounts = session.exec(
             select(BankAccount).where(BankAccount.owner_id == user.id)
         ).all()
