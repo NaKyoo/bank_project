@@ -5,21 +5,19 @@ name: CI Backend - Tests Automatisés
 # ==============================================================================
 # DESCRIPTION :
 # Ce pipeline d'Intégration Continue (CI) automatise l'exécution des tests
-# unitaires à chaque push sur la branche 'github-action'.
-# En cas d'échec des tests, un email d'alerte est automatiquement envoyé.
+# unitaires à chaque push sur n'importe quelle branche du dépôt.
+# En cas d'échec des tests, une issue GitHub est automatiquement créée.
 #
 # OBJECTIFS (User Story 2) :
 # "Exécution automatique des tests avec rapport"
+# "En tant que Développeur, je veux être notifié si une modification a un impact négatif"
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
 # DÉCLENCHEUR (TRIGGER)
 # ------------------------------------------------------------------------------
-# Le workflow se déclenche uniquement lors d'un push sur la branche 'github-action'
-on:
-  push:
-    branches:
-      - github-action
+# Le workflow se déclenche automatiquement à chaque push sur toutes les branches
+on: [push]
 
 # ------------------------------------------------------------------------------
 # PERMISSIONS
