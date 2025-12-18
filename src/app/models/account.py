@@ -5,8 +5,6 @@ from typing import List, Optional
 from enum import Enum
 from sqlmodel import Field, Relationship, SQLModel
 
-bankaccount_nb = "bankaccount.account_number"
-
 class TransactionStatus(str, Enum):
     """
     Enumération représentant les différents états possibles d'une transaction.
@@ -35,10 +33,10 @@ class Transaction(SQLModel, table=True):
     amount: Decimal
 
     # Numéro du compte source (clé étrangère vers la table BankAccount)
-    source_account_number: Optional[str] = Field(default=None, foreign_key=bankaccount_nb)
+    source_account_number: Optional[str] = Field(default=None, foreign_key="bankaccount.account_number")
 
     # Numéro du compte destinataire (clé étrangère vers la table BankAccount)
-    destination_account_number: Optional[str] = Field(default=None, foreign_key=bankaccount_nb)
+    destination_account_number: Optional[str] = Field(default=None, foreign_key="bankaccount.account_number")
 
     # Date et heure de la transaction (valeur par défaut : maintenant)
     date: datetime = Field(default_factory=datetime.now)
@@ -85,9 +83,9 @@ class BankAccount(SQLModel, table=True):
     # ==============================
     # Lien parent-enfant
     # ==============================
-    
-    parent_account_number: Optional[str] = Field(default=None, foreign_key=bankaccount_nb)
-    
+
+    parent_account_number: Optional[str] = Field(default=None, foreign_key="bankaccount.account_number")
+
     # Le parent (compte principal)
     parent_account: Optional["BankAccount"] = Relationship(
         back_populates="child_accounts",
