@@ -32,6 +32,28 @@ def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
 
 # ==============================================================================
+# FONCTION DE CRÉATION DES TABLES
+# ==============================================================================
+
+def create_db_and_tables():
+    """
+    Crée toutes les tables de la base de données.
+    
+    Cette fonction utilise les métadonnées SQLModel pour créer automatiquement
+    toutes les tables définies dans les modèles de l'application.
+    
+    Note:
+        Cette fonction est généralement appelée au démarrage de l'application
+        dans le fichier main.py via la fonction lifespan.
+        
+    Example:
+        >>> create_db_and_tables()
+        # Crée toutes les tables si elles n'existent pas
+    """
+    SQLModel.metadata.create_all(engine)
+
+
+# ==============================================================================
 # DÉPENDANCE FASTAPI - SESSION DE BASE DE DONNÉES
 # ==============================================================================
 
