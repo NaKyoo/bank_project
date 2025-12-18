@@ -83,8 +83,11 @@ async def lifespan(app: FastAPI):
         
         pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
-        if not session.exec(select(User).where(User.email == "Eric123@gmail.com")).first(): 
-            
+        # Vérifier si l'utilisateur existe déjà
+        user = session.exec(select(User).where(User.email == "Eric123@gmail.com")).first()
+        
+        if not user:
+            # L'utilisateur n'existe pas, on le crée
             hashed_password = pwd_context.hash("Eric123!")
 
             user = User(
