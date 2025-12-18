@@ -62,11 +62,20 @@ class Transaction(SQLModel, table=True):
 # Classe représentant un Compte Bancaire
 # ------------------------------
 class BankAccount(SQLModel, table=True):
-    # Numéro de compte unique (clé primaire)
-    account_number: str = Field(primary_key=True)
-
-    # Solde du compte (par défaut à 0)
-    balance: Decimal = Field(default=Decimal("0"))
+    """
+    Modèle représentant un compte bancaire dans la base de données.
+    
+    Attributes:
+        account_number (str): Numéro unique du compte (clé primaire)
+        balance (Decimal): Solde actuel du compte
+        is_active (bool): Indique si le compte est actif
+        closed_at (datetime): Date de fermeture du compte (si fermé)
+        created_at (datetime): Date de création du compte
+        owner_id (int): ID du propriétaire du compte (clé étrangère vers User)
+        parent_account_number (str): Numéro du compte parent (pour comptes secondaires)
+    """
+    account_number: str = Field(primary_key=True, unique=True, index=True)
+    balance: Decimal = Field(default=Decimal("0"), max_digits=10, decimal_places=2)
     
     
     is_active: bool = Field(default=True)
