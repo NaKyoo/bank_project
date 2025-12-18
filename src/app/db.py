@@ -28,9 +28,6 @@ DATABASE_URL = "sqlite:///./bank.db"
 
 engine = create_engine(DATABASE_URL, echo=True)
 
-def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
-
 # ==============================================================================
 # FONCTION DE CRÉATION DES TABLES
 # ==============================================================================
