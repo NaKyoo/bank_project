@@ -103,7 +103,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware, # permet l'ajout d'un middleware pour intercepter toute les requêtes avant d'atteindre les routes, permet d'autoriser les appels depuis une autre API # 
     allow_origins=[
-        "http://localhost:5173", # permet l'autorisation React de faire des requêtes vers l'API
+        "http://localhost", # permet l'autorisation React de faire des requêtes vers l'API
     ],
     allow_credentials=True, # permet l’envoi de données sensibles (comme les headers ou cookies) dans une requête cross-origin (donc entre deux ports ou domaines différents).
     # autorise toutes les méthodes et tous les en-têtes personnalisé à être envoyer par le frontend
