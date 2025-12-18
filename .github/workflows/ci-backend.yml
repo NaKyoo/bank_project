@@ -21,6 +21,16 @@ on:
     branches:
       - github-action
 
+# ------------------------------------------------------------------------------
+# PERMISSIONS
+# ------------------------------------------------------------------------------
+# Définit les permissions accordées au token GITHUB_TOKEN pour ce workflow.
+# Ces permissions sont nécessaires pour que le workflow puisse créer des issues
+# automatiquement en cas d'échec des tests.
+permissions:
+  issues: write      # Permet de créer et modifier des issues
+  contents: read     # Permet de lire le contenu du dépôt
+
 jobs:
   test:
     # --------------------------------------------------------------------------
