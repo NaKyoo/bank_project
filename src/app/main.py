@@ -1,14 +1,11 @@
 """
-Module principal de l'application Bank Project API.
+Application principale FastAPI pour la gestion bancaire.
 
 Ce module configure et initialise l'application FastAPI avec :
 - Configuration de la base de données SQLite
 - Gestion du cycle de vie (lifespan) de l'application
 - Middleware CORS pour les requêtes cross-origin
-Application principale FastAPI pour la gestion bancaire.
-
-Ce module configure l'application FastAPI, initialise la base de données,
-et enregistre les routes de l'API.
+- Enregistrement des routes de l'API
 """
 
 from contextlib import asynccontextmanager
@@ -19,7 +16,7 @@ from sqlmodel import Session, select, SQLModel
 from app.db import engine, create_db_and_tables
 from app.models.account import BankAccount
 from app.models.user import User
-from app.controllers.bank_controller import router
+from app.controllers import bank_controller
 
 from passlib.context import CryptContext
 
