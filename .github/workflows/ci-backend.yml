@@ -19,9 +19,6 @@ name: CI Backend - Tests Automatisés
 # Le workflow se déclenche automatiquement à chaque push sur toutes les branches
 on: [push]
 
-permissions:
-  issues: write
-  contents: write
 # ------------------------------------------------------------------------------
 # PERMISSIONS
 # ------------------------------------------------------------------------------
