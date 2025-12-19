@@ -1,21 +1,31 @@
+# on utilise une image de base Python alléger
 FROM python:3.11-slim
 
+# on définit le dossier de travail
 WORKDIR /app/src
 
+# empêche Python d'écrire des fichiers .pyc inutiles dans le conteneur
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
 
+# force Python à afficher les logs en temps réel
+ENV PYTHONUNBUFFERED=1
+# indique à Python où chercher tes modules (ton code) pour éviter les erreurs d'importation
 ENV PYTHONPATH=/app/src
 
+# installe les outils système nécessaires à la compilation de certaines bibliothèques Python
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# copie la listes des dépendances Python et les installe
 COPY requirements.txt ../
 RUN pip install --no-cache-dir -r ../requirements.txt
 
+# copie l'intégralité de ton code source dans le conteneur
 COPY . ../
 
+# expose le port sur lequel l'application va tourner
 EXPOSE 8000
 
+# commande pour lancer l'application avec Uvicorn
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
