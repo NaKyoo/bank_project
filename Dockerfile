@@ -2,7 +2,7 @@
 FROM python:3.13-slim AS build-stage
 
 # on définit le dossier de travail
-WORKDIR /app/src
+WORKDIR /app
 
 # empêche Python d'écrire des fichiers .pyc inutiles dans le conteneur
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -10,7 +10,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 # force Python à afficher les logs en temps réel
 ENV PYTHONUNBUFFERED=1
 # indique à Python où chercher tes modules (ton code) pour éviter les erreurs d'importation
-ENV PYTHONPATH=/app/src
+ENV PYTHONPATH=/app
 
 # installe les outils système nécessaires à la compilation de certaines bibliothèques Python
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -22,7 +22,7 @@ COPY requirements.txt ../
 RUN pip install --no-cache-dir -r ../requirements.txt
 
 # copie l'intégralité de ton code source dans le conteneur
-COPY . ../
+COPY . .
 
 # Docs stage
 
