@@ -30,7 +30,7 @@ FROM build-stage AS doc-stage
 # Installation de l'outil de documentation
 RUN pip install --no-cache-dir pdoc
 # On génère la doc du dossier 'src' vers '/app/docs/out'
-RUN pdoc ./src -o /app/docs/out
+RUN pdoc src -o /app/docs/out
 
 FROM build-stage AS final
 # expose le port sur lequel l'application va tourner
