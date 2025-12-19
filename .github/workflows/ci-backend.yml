@@ -19,6 +19,9 @@ name: CI Backend - Tests Automatisés
 # Le workflow se déclenche automatiquement à chaque push sur toutes les branches
 on: [push]
 
+permissions:
+  issues: write
+  contents: write
 # ------------------------------------------------------------------------------
 # PERMISSIONS
 # ------------------------------------------------------------------------------
@@ -148,6 +151,22 @@ jobs:
       steps:
         - name: Checkout code
           uses: actions/checkout@v5
+
+        - name: Generate and Extract Backend Documentation
+          run: |
+            # Construction de la cible doc-stage
+            docker build --target doc-stage -t backend-doc-gen .
+            # Extraction de la doc vers l'hôte GitHub
+            docker create --name extractor backend-doc-gen
+            docker cp extractor:/app/docs/out ./delivery-backend-docs
+            docker rm extractor
+
+        - name: Upload Backend Documentation Artifact
+          uses: actions/upload-artifact@v4
+          with:
+            name: backend-source-code-documentation
+            path: ./delivery-backend-docs/
+            retention-days: 30
 
         - name: Login to Docker Hub
           uses: docker/login-action@v3
