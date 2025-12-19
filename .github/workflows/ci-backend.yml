@@ -8,7 +8,7 @@ name: CI Backend - Tests Automatisés
 # unitaires à chaque push sur n'importe quelle branche du dépôt.
 # En cas d'échec des tests, une issue GitHub est automatiquement créée.
 #
-# OBJECTIFS (User Story 2) :
+# OBJECTIFS :
 # "Exécution automatique des tests avec rapport"
 # "En tant que Développeur, je veux être notifié si une modification a un impact négatif"
 # ==============================================================================
@@ -45,16 +45,16 @@ jobs:
       # ------------------------------------------------------------------------
       # Clone le code du dépôt dans l'environnement virtuel GitHub Actions
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ------------------------------------------------------------------------
       # ÉTAPE 2 : CONFIGURATION DE PYTHON 3.10
       # ------------------------------------------------------------------------
       # Installe et configure Python version 3.10 pour garantir la compatibilité
-      - name: Set up Python 3.10
+      - name: Set up Python 3.13.17
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.13.17"
 
       # ------------------------------------------------------------------------
       # ÉTAPE 3 : INSTALLATION DES DÉPENDANCES
