@@ -1,5 +1,5 @@
 # on utilise une image de base Python alléger
-FROM python:3.11-slim
+FROM python:3.13-slim AS build-stage
 
 # on définit le dossier de travail
 WORKDIR /app/src
