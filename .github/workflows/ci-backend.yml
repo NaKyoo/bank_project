@@ -48,13 +48,13 @@ jobs:
         uses: actions/checkout@v5
 
       # ------------------------------------------------------------------------
-      # ÉTAPE 2 : CONFIGURATION DE PYTHON 3.13.17
+      # ÉTAPE 2 : CONFIGURATION DE PYTHON 3.13
       # ------------------------------------------------------------------------
-      # Installe et configure Python version 3.13.17 pour garantir la compatibilité
-      - name: Set up Python 3.13.17
+      # Installe et configure Python version 3.13 pour garantir la compatibilité
+      - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13.17"
+          python-version: "3.13"
 
       # ------------------------------------------------------------------------
       # ÉTAPE 3 : INSTALLATION DES DÉPENDANCES
