@@ -27,7 +27,7 @@ on: [push]
 # automatiquement en cas d'échec des tests.
 permissions:
   issues: write      # Permet de créer et modifier des issues
-  contents: read     # Permet de lire le contenu du dépôt
+  contents: write    # Permet de lire et écrire le contenu du dépôt (pour commit SBOM)
 
 jobs:
   test:
@@ -68,13 +68,34 @@ jobs:
           pip install -r requirements.txt
 
       # ------------------------------------------------------------------------
-      # ÉTAPE 3b : GÉNÉRATION DU SBOM
+      # ÉTAPE 3b : GÉNÉRATION ET SAUVEGARDE DU SBOM (CycloneDX)
       # ------------------------------------------------------------------------
-      # Génère la liste des composants logiciels
       - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: ./
+          format: cyclonedx-json
+          output-file: sbom-cyclonedx.json
+
+      - name: Upload SBOM Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-files
+          path: sbom-cyclonedx.json
+          retention-days: 90
+
+      # ------------------------------------------------------------------------
+      # ÉTAPE 3c : COMMIT DU SBOM DANS LE REPOSITORY
+      # ------------------------------------------------------------------------
+      # Sauvegarde le SBOM directement dans le dépôt pour versioning
+      # Cela permet de suivre l'évolution des dépendances au fil du temps
+      - name: Commit SBOM to repository
         run: |
-          cyclonedx-py environment --output-file sbom.json
-          upload-sbom
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add sbom-cyclonedx.json
+          git diff --quiet && git diff --staged --quiet || git commit -m "chore: update SBOM [skip ci]"
+          git push
 
 
       # ------------------------------------------------------------------------
