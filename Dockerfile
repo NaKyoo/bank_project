@@ -6,11 +6,10 @@ WORKDIR /app
 
 # empêche Python d'écrire des fichiers .pyc inutiles dans le conteneur
 ENV PYTHONDONTWRITEBYTECODE=1
-
 # force Python à afficher les logs en temps réel
 ENV PYTHONUNBUFFERED=1
 # indique à Python où chercher tes modules (ton code) pour éviter les erreurs d'importation
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app/src
 
 # installe les outils système nécessaires à la compilation de certaines bibliothèques Python
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -29,12 +28,11 @@ COPY . .
 FROM build-stage AS doc-stage
 # Installation de l'outil de documentation
 RUN pip install --no-cache-dir pdoc
-# On s'assure que src est un package Python (crée __init__.py si absent)
-RUN touch src/__init__.py
 # On génère la doc du dossier 'src' vers '/app/docs/out'
 RUN pdoc src -o /app/docs/out
 
-FROM build-stage AS final
+
+FROM build-stage AS production-stage
 # expose le port sur lequel l'application va tourner
 EXPOSE 8000
 
