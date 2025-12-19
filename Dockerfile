@@ -29,6 +29,8 @@ COPY . ../
 FROM build-stage AS doc-stage
 # Installation de l'outil de documentation
 RUN pip install --no-cache-dir pdoc
+# On s'assure que src est un package Python (crée __init__.py si absent)
+RUN touch src/__init__.py
 # On génère la doc du dossier 'src' vers '/app/docs/out'
 RUN pdoc src -o /app/docs/out
 
