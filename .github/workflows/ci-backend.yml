@@ -70,11 +70,11 @@ jobs:
       # ------------------------------------------------------------------------
       # ÉTAPE 3b : GÉNÉRATION DU SBOM
       # ------------------------------------------------------------------------
-      # Génère la liste des composants logiciels (Software Bill of Materials)
-      # pour l'audit de sécurité et la conformité.
+      # Génère la liste des composants logiciels
       - name: Generate SBOM
         run: |
           cyclonedx-py environment --output-file sbom.json
+          upload-sbom
 
 
       # ------------------------------------------------------------------------
