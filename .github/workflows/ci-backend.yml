@@ -152,9 +152,7 @@ jobs:
 
         - name: Generate and Extract Backend Documentation
           run: |
-            # Construction de la cible doc-stage
             docker build --target doc-stage -t backend-doc-gen .
-            # Extraction de la doc vers l'hôte GitHub
             docker create --name extractor backend-doc-gen
             docker cp extractor:/app/docs/out ./delivery-backend-docs
             docker rm extractor

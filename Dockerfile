@@ -29,9 +29,8 @@ COPY . ../
 FROM build-stage AS doc-stage
 # Installation de l'outil de documentation
 RUN pip install --no-cache-dir pdoc
-# Génération de la doc à partir du dossier actuel vers /app/docs/out
-# On utilise --html pour forcer le format web
-RUN pdoc . -o /app/docs/out
+# On génère la doc du dossier 'src' vers '/app/docs/out'
+RUN pdoc ./src -o /app/docs/out
 
 FROM build-stage AS final
 # expose le port sur lequel l'application va tourner
