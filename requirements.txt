@@ -8,4 +8,5 @@ PyJWT
 pydantic[email]
 pytest
 httpx
+cyclonedx-bom
 # If you need additional packages for development or testing, keep them in a separate dev requirements file.

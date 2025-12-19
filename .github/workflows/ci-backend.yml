@@ -68,6 +68,16 @@ jobs:
           pip install -r requirements.txt
 
       # ------------------------------------------------------------------------
+      # ÉTAPE 3b : GÉNÉRATION DU SBOM
+      # ------------------------------------------------------------------------
+      # Génère la liste des composants logiciels (Software Bill of Materials)
+      # pour l'audit de sécurité et la conformité.
+      - name: Generate SBOM
+        run: |
+          cyclonedx-py environment --output-file sbom.json
+
+
+      # ------------------------------------------------------------------------
       # ÉTAPE 4 : EXÉCUTION DES TESTS AVEC PYTEST
       # ------------------------------------------------------------------------
       # Configure le PYTHONPATH pour inclure le dossier 'src' afin que
