@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  # --- Reverse Proxy (Point d'entrée) ---
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - backend
+      - frontend
+    restart: always
+
+  # --- Backend (API) ---
+  backend:
+    image: nolent77/bank-backend:latest # Assurez-vous que le tag correspond
+    restart: always
+    environment:
+      - DATABASE_URL=sqlite:///./bank.db # Ou votre vraie DB de prod
+      # Ajoutez ici les autres variables d'env (SECRET_KEY, etc.)
+
+      # --- Frontend (React) ---
+  frontend:
+    image: votre-user-hub/bank-frontend:latest # ⚠️ REMPLACER PAR VOTRE IMAGE
+    restart: always
